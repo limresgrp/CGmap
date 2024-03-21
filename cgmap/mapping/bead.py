@@ -1,3 +1,4 @@
+import logging
 import re
 import itertools
 
@@ -85,7 +86,7 @@ class BeadMappingAtomSettings:
                     self.set_relative_weight(float(groups[0]))
                     continue
             except ValueError as e:
-                print(f"Error while parsing mapping for bead {self.bead_name}. Incorrect mapping setting: {setting}")
+                logging.error(f"Error while parsing mapping for bead {self.bead_name}. Incorrect mapping setting: {setting}")
                 raise e
         
         if not self._relative_weight_set:
@@ -379,9 +380,11 @@ class Bead:
                 updated_config_ordered_atom_idnames.append(coaidnames)
                 if conf_ordered_index is None:
                     conf_ordered_index = coai_index.item()
-        self._config_ordered_atom_idnames = updated_config_ordered_atom_idnames
+            else:
+                pass
         if conf_ordered_index is None:
-            raise Exception(f"Atom with idname {atom_idname} not found in mapping configuraiton files for bead {self.idname}")
+            raise Exception(f"Atom with idname {atom_idname} not found in mapping configuration files for bead {self.idname}")
+        self._config_ordered_atom_idnames = updated_config_ordered_atom_idnames
         
         self._n_found_atoms += 1
 
@@ -440,7 +443,7 @@ class Bead:
         # w.r.t. the order in the pdbs used for training.
         self._all_atom_idnames = np.array(self._all_atom_idnames)
         self._reconstructed_atom_idnames = np.array(self._reconstructed_atom_idnames)
-        self._reconstructed_conf_ordered_idcs = np.array(self._reconstructed_conf_ordered_idcs)
+        self._reconstructed_conf_ordered_idcs = np.array(self._reconstructed_conf_ordered_idcs, dtype=int)
 
         # ------------------------------------------------------------------------------------------------------------------ #
 
@@ -477,6 +480,7 @@ class Bead:
 
     def sort_atom_idnames(self, atom_idnames):
         coan_max_len = 0
+        config_ordered_atom_idnames = np.array([], dtype=int)
         for coa in self._config_ordered_atom_idnames:
             coan = np.array([x for x in coa if np.isin(x, atom_idnames)])
             if len(coan) > coan_max_len:

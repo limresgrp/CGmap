@@ -1,11 +1,11 @@
 import copy
+import logging
 import re
 import os
 import sys
 import yaml
 import traceback
 import numpy as np
-import pandas as pd
 import MDAnalysis as mda
 
 from collections import OrderedDict
@@ -23,9 +23,7 @@ class Mapper():
     u: mda.Universe = None
     bead_types_filename: str = "bead_types.yaml"
 
-    _keep_hydrogens: bool = False
     _weigth_based_on: str = 'mass'
-
     _atom2bead: dict[str, str] = {}
     _bead2atom: dict[str, List[str]] = {}
     _bead_types: dict[str, int] = {}
@@ -177,7 +175,7 @@ class Mapper():
         return {k: v for k, v in {
             DataDict.NUM_RESIDUES:    self.num_residues,
             DataDict.RESNAMES:        self.resnames,
-            DataDict.RESIDCS:        self.resindices,
+            DataDict.RESIDCS:         self.resindices,
             DataDict.RESNUMBERS:      self.resnumbers,
 
             DataDict.NUM_ATOMS:       self.num_atoms,
@@ -209,8 +207,9 @@ class Mapper():
             DataDict.BEAD2ATOM_WEIGHTS:   self._bead2atom_weights,
         }.items() if v is not None}
 
-    def __init__(self, config: Dict) -> None:
+    def __init__(self, config: Dict, logger = None) -> None:
         self.config = config
+        self.logger = logger if logger is not None else logging.getLogger()
         mapping_folder = config.get("mapping", None)
         if mapping_folder is None:
             raise Exception(
@@ -220,8 +219,10 @@ class Mapper():
                 mappings are specified in a mapping folder inside 'heqbm/data/'
                 """
             )
-        self._root = os.path.join(os.path.dirname(__file__), '..', 'data', mapping_folder)
-        self._keep_hydrogens = config.get("keep_hydrogens", True)
+        if os.path.isabs(mapping_folder):
+            self._root = mapping_folder
+        else:
+            self._root = os.path.join(os.path.dirname(__file__), '..', 'data', mapping_folder)
         self._weigth_based_on = config.get("weigth_based_on", "mass")
 
         # Iterate configuration files and load all mappings
@@ -259,8 +260,6 @@ class Mapper():
             _conf_bead2atom = OrderedDict({})
 
             for atom, bead_settings_str in conf.get("atoms").items():
-                if not self._keep_hydrogens and get_type_from_name(atom) == 1:
-                    continue
                 
                 all_bead_settings = bead_settings_str.split()
                 bead_names = all_bead_settings[0].split(',')
@@ -303,45 +302,46 @@ class Mapper():
             yaml.dump(bead_types_conf, outfile, default_flow_style=False)
         
         for k, b2a in self._bead2atom.items():
-            len_base = self.get_bead2atom_len(b2a[0])
-            assert all([self.get_bead2atom_len(v) == len_base for v in b2a]), f"Configurations for bead type {k} have different number of atoms"
+            len_base = len(b2a[0])
+            assert all([len(v) == len_base for v in b2a]), f"Configurations for bead type {k} have different number of atoms"
 
         ### Compute global mask and maximum bead size ###
         self._bead2atom_mask = np.zeros((self.n_bead_types, self.bead_reconstructed_size), dtype=bool)
                 
         for bead_idname, b2a in self._bead2atom.items():
-            self._bead2atom_mask[self._bead_types[bead_idname], :self.get_bead2atom_len(b2a[0])] = True
-    
-    def get_bead2atom_len(self, b2a: List[str]):
-        return len([atom_name for atom_name in b2a if self._keep_hydrogens or get_type_from_name(atom_name) != 1])
+            self._bead2atom_mask[self._bead_types[bead_idname], :len(b2a[0])] = True
 
     def _load_extra_mappings(self, bead_splits, atom_name, bead_idname):
         return
     
-    def map(self):
-        # New mapping, clear last records
+    def _clear_map(self):
         self._incomplete_beads.clear()
         self._complete_beads.clear()
         self._ordered_beads.clear()
         self._n_beads = 0
         self._n_atoms = 0
-        self.trajslice = self.config.get("trajslice", None)
 
+    def mapcg(self):
+        self._clear_map()
+        
+        self.trajslice = self.config.get("trajslice", None)
         self.u = mda.Universe(self.config.get("input"), *self.config.get("inputtraj", []), **self.config.get("extrakwargs", {}))
 
-        selection = self.config.get("selection")
-        if not self._keep_hydrogens:
-            selection = selection + ' and not (element H)'
-        try:
-            self.sel = self.u.select_atoms(selection)
-        except AttributeError:
-            selection = selection.replace('element', 'type')
-            self.sel = self.u.select_atoms(selection)
+        selection = self.config.get("selection", "all")
+        self.sel = self.u.select_atoms(selection)
         
-        try:
-            return self.map_impl_cg()
-        except:
-            return self.map_impl()
+        return self.map_impl_cg()
+    
+    def map(self):
+        self._clear_map()
+        
+        self.trajslice = self.config.get("trajslice", None)
+        self.u = mda.Universe(self.config.get("input"), *self.config.get("inputtraj", []), **self.config.get("extrakwargs", {}))
+
+        selection = self.config.get("selection", "all")
+        self.sel = self.u.select_atoms(selection)
+        
+        return self.map_impl()
     
     def map_impl_cg(
         self,
@@ -368,7 +368,7 @@ class Mapper():
                     cell_dimensions.append(ts.dimensions)
                 bead_positions.append(bead_pos)
         except ValueError as e:
-            print(f"Error rading trajectory: {e}. Skipping missing trajectory frames.")
+            self.logger.error(f"Error rading trajectory: {e}. Skipping missing trajectory frames.")
 
         self._bead_positions =  np.stack(bead_positions, axis=0)
         self._cell = np.stack(cell_dimensions, axis=0) if len(cell_dimensions) > 0 else None
@@ -477,10 +477,10 @@ class Mapper():
                 tb_info = traceback.extract_tb(tb)
                 filename, line, func, text = tb_info[-1]
 
-                print('An error occurred on line {} in statement {}'.format(line, text))
+                self.logger.error('An error occurred on line {} in statement {}'.format(line, text))
                 raise
             except Exception as e:
-                print(f"Missing {atom_idname} in mapping file")
+                self.logger.warning(f"Missing {atom_idname} in mapping file")
 
         # Complete all beads. Missing atoms will be ignored.
         for bead in self._incomplete_beads:
@@ -551,7 +551,7 @@ class Mapper():
                 build_all_atom_idcs = False
         
         except Exception as e:
-            print(f"Error rading trajectory: {e}. Skipping missing trajectory frames.")
+            self.logger.error(f"Error rading trajectory: {e}. Skipping missing trajectory frames.")
         
         self.all_atom_idcs = np.concatenate(all_atom_idcs)
         self._atom_positions =  np.stack(atom_positions, axis=0)
@@ -649,10 +649,11 @@ class Mapper():
             #     self._bead2atom_reconstructed_idcs[i, :len(bead._reconstructed_atom_idcs)] = bead._reconstructed_atom_idcs
             #     self._bead2atom_reconstructed_weights[i, :len(bead._reconstructed_atom_weights)] = bead._reconstructed_atom_weights / bead._reconstructed_atom_weights.sum()
 
-    def save(self, filename: Optional[str] = None):
+    def save(self, filename: Optional[str] = None, traj_format: Optional[str] = None):
 
         if filename is None:
-            filename = self.config.get('output', 'output.pdb')
+            p = Path(self.config.get('input'))
+            filename = self.config.get('output',  str(Path(p.parent, p.stem + '_CG' + p.suffix)))
         
         if len(os.path.dirname(filename)) > 0:
             os.makedirs(os.path.dirname(filename), exist_ok=True)
@@ -671,7 +672,16 @@ class Mapper():
         u.add_TopologyAttr('resid',    dataset[DataDict.RESIDCS])
         u.add_TopologyAttr('resnum',   dataset[DataDict.RESNUMBERS])
         u.add_TopologyAttr('chainID',  dataset[DataDict.BEAD_SEGIDS])
-        u.load_new(dataset.get(DataDict.BEAD_POSITION), order='fac')
-        u.dimensions = dataset[DataDict.CELL]
+        u.load_new(np.nan_to_num(dataset.get(DataDict.BEAD_POSITION)), order='fac')
+        u.dimensions = dataset.get(DataDict.CELL, None)
         sel = u.select_atoms('all')
-        sel.write(filename)
+        with mda.Writer(filename, n_atoms=u.atoms.n_atoms) as w:
+            w.write(sel.atoms)
+
+        if len(u.trajectory) > 1:
+            if traj_format is None:
+                traj_format = self.config.get('outputtraj', 'xtc')
+            filename_traj = str(Path(filename).with_suffix('.' + traj_format))
+            with mda.Writer(filename_traj, n_atoms=u.atoms.n_atoms) as w_traj:
+                for ts in u.trajectory:  # Skip the first frame as it's already saved
+                    w_traj.write(sel.atoms)
