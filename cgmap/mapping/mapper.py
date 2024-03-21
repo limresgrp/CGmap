@@ -65,8 +65,7 @@ class Mapper():
     _cell: np.ndarray = None
     _pbc: np.ndarray = np.array([True, True, True])
 
-    _bond_idcs: np.ndarray = None
-    _angle_idcs: np.ndarray = None
+    
 
     # Properties of mapping
     
@@ -198,8 +197,6 @@ class Mapper():
             DataDict.BEAD_RESNUMBERS: self._bead_resnums,
             DataDict.BEAD_SEGIDS:     self._bead_segids,
 
-            DataDict.BOND_IDCS:       self._bond_idcs,
-            DataDict.ANGLE_IDCS:      self._angle_idcs,
             DataDict.CELL:            self._cell,
             DataDict.PBC:             self._pbc,
 
@@ -415,7 +412,7 @@ class Mapper():
         batch, _, xyz = self._bead_positions.shape
         self._atom_positions =  np.zeros((batch, len(self._atom_names), xyz), dtype=self._bead_positions.dtype)
 
-        self.compute_bead2atom_idcs_and_weights()
+        self.compute_bead2atom_feats()
         self.compute_extra_map_impl()
             
     def map_impl(self):
@@ -515,8 +512,7 @@ class Mapper():
         self._atom_resnames = np.array(atom_resnames)
         self._atom_names = np.array(atom_names)
         
-        self.compute_bead2atom_idcs_and_weights()
-        self.compute_extra_map_impl()
+        self.compute_bead2atom_feats()
         
         # Read trajectory and map atom coords to bead coords
         atom_positions = []
@@ -557,20 +553,20 @@ class Mapper():
         self._atom_positions =  np.stack(atom_positions, axis=0)
         self._bead_positions =  np.stack(bead_positions, axis=0)
         self._cell = np.stack(cell_dimensions, axis=0) if len(cell_dimensions) > 0 else None
-
         self.store_extra_pos_impl()
+        self.compute_extra_map_impl()
 
     def compute_extra_map_impl(self):
-        pass
+        return
 
     def initialize_extra_pos_impl(self):
-        pass
+        return
 
     def update_extra_pos_impl(self, pos):
-        pass
+        return
 
     def store_extra_pos_impl(self):
-        pass
+        return
     
     def _get_incomplete_bead_from_atom_idname(self, atom_idname: str) -> List[Bead]:
         bead_idnames = np.unique(self._atom2bead[atom_idname])
@@ -630,24 +626,15 @@ class Mapper():
             return True
         return False
     
-    def compute_bead2atom_idcs_and_weights(self):
+    def compute_bead2atom_feats(self):
         ### Initialize instance mapping ###
         self._bead2atom_idcs = -np.ones((self.num_beads, self.bead_all_size), dtype=int)
         self._bead2atom_weights = np.zeros((self.num_beads, self.bead_all_size), dtype=float)
-
-        # self._bead2atom_reconstructed_idcs = -np.ones((self.num_beads, self.bead_reconstructed_size), dtype=int)
-        # self._bead2atom_reconstructed_weights = np.zeros((self.num_beads, self.bead_reconstructed_size), dtype=float)
 
         for i, bead in enumerate(self._ordered_beads):
             ### Build instance bead2atom_idcs and weights ###
             self._bead2atom_idcs[i, :bead.n_all_atoms] = bead._all_atom_idcs
             self._bead2atom_weights[i, :bead.n_all_atoms] = bead.all_atom_weights / bead.all_atom_weights.sum()
-            # try:
-            #     self._bead2atom_reconstructed_idcs[i, :bead.n_reconstructed_atoms] = bead._reconstructed_atom_idcs
-            #     self._bead2atom_reconstructed_weights[i, :bead.n_reconstructed_atoms] = bead._reconstructed_atom_weights / bead._reconstructed_atom_weights.sum()
-            # except:
-            #     self._bead2atom_reconstructed_idcs[i, :len(bead._reconstructed_atom_idcs)] = bead._reconstructed_atom_idcs
-            #     self._bead2atom_reconstructed_weights[i, :len(bead._reconstructed_atom_weights)] = bead._reconstructed_atom_weights / bead._reconstructed_atom_weights.sum()
 
     def save(self, filename: Optional[str] = None, traj_format: Optional[str] = None):
 
