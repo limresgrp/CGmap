@@ -19,7 +19,7 @@ setup(
     entry_points={
         # make the scripts available as command line scripts
         "console_scripts": [
-            "cgmap map = cgmap.scripts.map:main",
+            "cgmap = cgmap.scripts.map:main",
         ]
     },
     install_requires=[
@@ -27,9 +27,6 @@ setup(
         "MDAnalysis",
         "pyyaml",
         "molmass",
-        
-        "ase",
-        "tqdm",
         "contextlib2;python_version<'3.7'",  # backport of nullcontext
         'contextvars;python_version<"3.7"',  # backport of contextvars for savenload
         "typing_extensions;python_version<'3.8'",  # backport of Final
