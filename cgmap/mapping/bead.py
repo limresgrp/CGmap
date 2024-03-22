@@ -329,6 +329,21 @@ class Bead:
             except:
                 return atoms_positions
         return None
+
+    @property
+    def all_atom_forces(self):
+        if self.is_complete and len(self._all_atoms) > 0:
+            atoms_forces = np.empty((self.n_all_atoms, 3), dtype=np.float32)
+            atoms_forces[...] = np.nan
+            try:
+                actual_atoms_mask = np.ones((self.n_all_atoms,), dtype=bool)
+                if len(self.missing_atoms_idcs) > 0:
+                    actual_atoms_mask[self.missing_atoms_idcs] = False
+                atoms_forces[actual_atoms_mask] = np.stack([atom.force for atom in self._all_atoms], axis=0)
+                return atoms_forces
+            except:
+                return atoms_forces
+        return None
     
     @property
     def all_atom_weights(self):

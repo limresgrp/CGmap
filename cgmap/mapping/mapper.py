@@ -516,6 +516,7 @@ class Mapper():
         
         # Read trajectory and map atom coords to bead coords
         atom_positions = []
+        atom_forces = []
         bead_positions = []
         cell_dimensions = []
 
@@ -529,12 +530,16 @@ class Mapper():
             for ts in traj:
 
                 pos = np.empty((self._n_atoms, 3), dtype=float)
+                forces = np.empty((self._n_atoms, 3), dtype=float)
                 pos[...] = np.nan
+                forces[...] = np.nan
                 for bead in self._ordered_beads:
                     if build_all_atom_idcs:
                         all_atom_idcs.append(bead._all_atom_idcs)
                     pos[bead._all_atom_idcs] = bead.all_atom_positions
+                    forces[bead._all_atom_idcs] = bead.all_atom_forces
                 atom_positions.append(pos)
+                atom_forces.append(forces)
 
                 if ts.dimensions is not None:
                     cell_dimensions.append(ts.dimensions)
@@ -551,6 +556,7 @@ class Mapper():
         
         self.all_atom_idcs = np.concatenate(all_atom_idcs)
         self._atom_positions =  np.stack(atom_positions, axis=0)
+        self._atom_forces =  np.stack(atom_forces, axis=0)
         self._bead_positions =  np.stack(bead_positions, axis=0)
         self._cell = np.stack(cell_dimensions, axis=0) if len(cell_dimensions) > 0 else None
         self.store_extra_pos_impl()

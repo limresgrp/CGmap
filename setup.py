@@ -14,7 +14,7 @@ setup(
     description="CGmap is ...",
     download_url="https://github.com/limresgrp/CGmap",
     author="Daniele Angioletti",
-    python_requires=">=3.7",
+    python_requires=">=3.8",
     packages=find_packages(include=["cgmap", "cgmap.*"]),
     entry_points={
         # make the scripts available as command line scripts
