@@ -7,6 +7,11 @@ import yaml
 import traceback
 import numpy as np
 import MDAnalysis as mda
+from MDAnalysis.transformations import set_dimensions
+
+from aggforce import linearmap as lm
+from aggforce import agg as ag
+from aggforce import constfinder as cf
 
 from collections import OrderedDict
 from pathlib import Path
@@ -57,10 +62,10 @@ class Mapper():
     _bead_resindices: np.ndarray = None
     _bead_resnums: np.ndarray = None
     _bead_segids: np.ndarray = None
+    _bead_optim_forces = None
 
     _bead2atom_idcs: np.ndarray = None
     _bead2atom_weights: np.ndarray = None
-    _bead2atom_mask: np.ndarray = None
     
     _cell: np.ndarray = None
     _pbc: np.ndarray = np.array([True, True, True])
@@ -84,10 +89,6 @@ class Mapper():
     @property
     def n_bead_types(self):
         return len(self._bead_types)
-    
-    @property
-    def bead2atom_mask(self):
-        return self._bead2atom_mask
 
     # Properties of mapped instance
     
@@ -95,13 +96,7 @@ class Mapper():
     def bead2atom_idcs(self):
         if self._bead2atom_idcs is None:
             return None
-        return np.ma.masked_array(self._bead2atom_idcs, mask=~self.bead2atom_mask)
-    
-    @property
-    def bead2atom_weights(self):
-        if self._bead2atom_weights is None:
-            return None
-        return np.ma.masked_array(self._bead2atom_weights, mask=~self.bead2atom_mask)
+        return [b2a_id[b2a_id != -1].tolist() for b2a_id in self._bead2atom_idcs]
     
     @property
     def resnames(self):
@@ -149,6 +144,12 @@ class Mapper():
         if self._atom_names is None:
             return None
         return np.array([get_type_from_name(name) for name in self._atom_names])
+    
+    @property
+    def atom_forces(self):
+        if np.all(np.isnan(self._atom_forces)):
+            return None
+        return np.nan_to_num(self._atom_forces)
 
     @property
     def num_beads(self):
@@ -170,6 +171,34 @@ class Mapper():
         return np.repeat(np.arange(len(c)), c)
     
     @property
+    def bead_optim_forces(self):
+        if self._bead_optim_forces is None and self._atom_forces is not None:
+            idcs = self.bead2atom_idcs
+            idcs = [[i for i in id if ~np.any(np.isnan(self._atom_forces[0, i]))] for id in idcs]
+            cmap = lm.LinearMap(idcs, n_fg_sites=self.num_atoms)
+            constraints = cf.guess_pairwise_constraints(self._atom_positions, threshold=1e-3)
+            self._bead_optim_forces = ag.project_forces(
+                method=ag.linearmap.qp_linear_map_per_cg_site, # ag.linearmap.constraint_aware_uni_map
+                xyz=None,
+                forces=self.atom_forces,
+                config_mapping=cmap,
+                constrained_inds=constraints,
+            )
+        return self._bead_optim_forces
+    
+    @property
+    def bead_forces(self):
+        if self.bead_optim_forces is None:
+            return None
+        return self.bead_optim_forces["projected_forces"]
+    
+    @property
+    def bead2atom_forces_weights(self):
+        if self.bead_optim_forces is None:
+            return None
+        return self._bead_optim_forces["map"].standard_matrix
+    
+    @property
     def dataset(self):
         return {k: v for k, v in {
             DataDict.NUM_RESIDUES:    self.num_residues,
@@ -185,7 +214,7 @@ class Mapper():
             DataDict.ATOM_RESIDCS:    self._atom_resindices,
             DataDict.ATOM_RESNUMBERS: self._atom_resnums,
             DataDict.ATOM_SEGIDS:     self._atom_segindices,
-            DataDict.ATOM_FORCES:     self._atom_forces,
+            DataDict.ATOM_FORCES:     self.atom_forces,
 
             DataDict.NUM_BEADS:       self.num_beads,
             DataDict.BEAD_POSITION:   self._bead_positions,
@@ -196,6 +225,7 @@ class Mapper():
             DataDict.BEAD_RESIDCS:    self.bead_resindices,
             DataDict.BEAD_RESNUMBERS: self._bead_resnums,
             DataDict.BEAD_SEGIDS:     self._bead_segids,
+            DataDict.BEAD_FORCES:     self.bead_forces,
 
             DataDict.CELL:            self._cell,
             DataDict.PBC:             self._pbc,
@@ -232,7 +262,6 @@ class Mapper():
         self._bead_types.clear()
         self._bead_mapping_settings.clear()
         
-        self._bead2atom_mask: np.ndarray = None
         self._max_bead_reconstructed_atoms: int = 0
         self._max_bead_all_atoms: int = 0
 
@@ -302,12 +331,6 @@ class Mapper():
             len_base = len(b2a[0])
             assert all([len(v) == len_base for v in b2a]), f"Configurations for bead type {k} have different number of atoms"
 
-        ### Compute global mask and maximum bead size ###
-        self._bead2atom_mask = np.zeros((self.n_bead_types, self.bead_reconstructed_size), dtype=bool)
-                
-        for bead_idname, b2a in self._bead2atom.items():
-            self._bead2atom_mask[self._bead_types[bead_idname], :len(b2a[0])] = True
-
     def _load_extra_mappings(self, bead_splits, atom_name, bead_idname):
         return
     
@@ -317,6 +340,7 @@ class Mapper():
         self._ordered_beads.clear()
         self._n_beads = 0
         self._n_atoms = 0
+        self._bead_optim_forces = None
 
     def mapcg(self):
         self._clear_map()
@@ -666,7 +690,10 @@ class Mapper():
         u.add_TopologyAttr('resnum',   dataset[DataDict.RESNUMBERS])
         u.add_TopologyAttr('chainID',  dataset[DataDict.BEAD_SEGIDS])
         u.load_new(np.nan_to_num(dataset.get(DataDict.BEAD_POSITION)), order='fac')
-        u.dimensions = dataset.get(DataDict.CELL, None)
+        box_dimension = dataset.get(DataDict.CELL, None)
+        if box_dimension is not None:
+            transform = set_dimensions(box_dimension)
+            u.trajectory.add_transformations(transform)
         sel = u.select_atoms('all')
         with mda.Writer(filename, n_atoms=u.atoms.n_atoms) as w:
             w.write(sel.atoms)
