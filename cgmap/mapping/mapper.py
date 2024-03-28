@@ -468,9 +468,8 @@ class Mapper():
                 # This check is necessary to complete beads on residue change.
                 # This allows having beads with incomplete atoms that do not remain pending
                 if atom.resindex > last_resindex:
-                    for bead in self._incomplete_beads:
-                        self._complete_bead(bead)
-                        self._check_bead_completeness(bead)
+                    while len(self._incomplete_beads) > 0:
+                        self._complete_bead(self._incomplete_beads.pop())
                     last_resindex = atom.resindex
                 
                 # Get existing beads which contain the current atom.
@@ -516,9 +515,8 @@ class Mapper():
                 self.logger.warning(f"Missing {atom_idname} in mapping file")
 
         # Complete all beads. Missing atoms will be ignored.
-        for bead in self._incomplete_beads:
-            self._complete_bead(bead)
-            self._check_bead_completeness(bead)
+        while len(self._incomplete_beads) > 0:
+            self._complete_bead(self._incomplete_beads.pop())
 
         self._bead_idnames = np.array(bead_idnames)
         self._bead_resnames = np.array(bead_resnames)
