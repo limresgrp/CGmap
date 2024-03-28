@@ -9,10 +9,6 @@ import numpy as np
 import MDAnalysis as mda
 from MDAnalysis.transformations import set_dimensions
 
-from aggforce import linearmap as lm
-from aggforce import agg as ag
-from aggforce import constfinder as cf
-
 from collections import OrderedDict
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -71,7 +67,6 @@ class Mapper():
     _pbc: np.ndarray = np.array([True, True, True])
 
     
-
     # Properties of mapping
     
     @property
@@ -172,19 +167,25 @@ class Mapper():
     
     @property
     def bead_optim_forces(self):
-        if self._bead_optim_forces is None and self._atom_forces is not None:
-            idcs = self.bead2atom_idcs
-            idcs = [[i for i in id if ~np.any(np.isnan(self._atom_forces[0, i]))] for id in idcs]
-            cmap = lm.LinearMap(idcs, n_fg_sites=self.num_atoms)
-            constraints = cf.guess_pairwise_constraints(self._atom_positions, threshold=1e-3)
-            self._bead_optim_forces = ag.project_forces(
-                method=ag.linearmap.qp_linear_map_per_cg_site, # ag.linearmap.constraint_aware_uni_map
-                xyz=None,
-                forces=self.atom_forces,
-                config_mapping=cmap,
-                constrained_inds=constraints,
-            )
-        return self._bead_optim_forces
+        try:
+            from aggforce import linearmap as lm
+            from aggforce import agg as ag
+            from aggforce import constfinder as cf
+            if self._bead_optim_forces is None and self._atom_forces is not None:
+                idcs = self.bead2atom_idcs
+                idcs = [[i for i in id if ~np.any(np.isnan(self._atom_forces[0, i]))] for id in idcs]
+                cmap = lm.LinearMap(idcs, n_fg_sites=self.num_atoms)
+                constraints = cf.guess_pairwise_constraints(self._atom_positions, threshold=1e-3)
+                self._bead_optim_forces = ag.project_forces(
+                    method=ag.linearmap.qp_linear_map_per_cg_site, # ag.linearmap.constraint_aware_uni_map
+                    xyz=None,
+                    forces=self.atom_forces,
+                    config_mapping=cmap,
+                    constrained_inds=constraints,
+                )
+            return self._bead_optim_forces
+        except:
+            return None
     
     @property
     def bead_forces(self):
@@ -280,38 +281,49 @@ class Mapper():
             if filename == self.bead_types_filename:
                 continue
             
-            conf: dict = OrderedDict(yaml.safe_load(Path(os.path.join(self._root, filename)).read_text()))
-            mol = conf.get("molecule")
-            
             _conf_bead2atom = OrderedDict({})
 
-            for atom, bead_settings_str in conf.get("atoms").items():
-                
+            conf: dict = OrderedDict(yaml.safe_load(Path(os.path.join(self._root, filename)).read_text()))
+            mol: str = conf.get("molecule")
+            atoms_settings: dict[str, str] = conf.get("atoms")
+            for atom_names, bead_settings_str in atoms_settings.items():
                 all_bead_settings = bead_settings_str.split()
                 bead_names = all_bead_settings[0].split(',')
-
+                
                 for i, bn in enumerate(bead_names):
                     bead_idname = DataDict.STR_SEPARATOR.join([mol, bn])
-                    atom_idname = DataDict.STR_SEPARATOR.join([mol, atom])
                     bead_settings = [x.split(',')[i] for x in all_bead_settings[1:]]
-                    
-                    atom2bead_list = self._atom2bead.get(atom_idname, [])
-                    atom2bead_list.append(bead_idname)
-                    self._atom2bead[atom_idname] = atom2bead_list
                     bms = self._bead_mapping_settings.get(bead_idname, BeadMappingSettings(bead_idname))
-                    bmas = bms.get_bmas_by_atom_idname(atom_idname)
-                    if bmas is None:
-                        bmas = BeadMappingAtomSettings(bead_settings, bead_idname, atom_idname, num_shared_beads=len(bead_names))
-                        bms.add_atom_settings(bmas)
-                        self._bead_mapping_settings[bead_idname] = bms
+
+                    alternative_atom_name = False
+                    atom_idname_alternatives = []
+                    for atom in atom_names.strip().split(','):
+                        atom_idname = DataDict.STR_SEPARATOR.join([mol, atom])
+                        atom_idname_alternatives.append(atom_idname)
+                        atom2bead_list = self._atom2bead.get(atom_idname, [])
+                        atom2bead_list.append(bead_idname)
+                        self._atom2bead[atom_idname] = atom2bead_list
+                        
+                        bmas = bms.get_bmas_by_atom_idname(atom_idname)
+                        if bmas is None:
+                            bmas = BeadMappingAtomSettings(
+                                bead_settings,
+                                bead_idname,
+                                atom_idname,
+                                num_shared_beads=len(bead_names)
+                            )
+                            bms.add_atom_settings(bmas, alternative_atom_name=alternative_atom_name)
+                            self._bead_mapping_settings[bead_idname] = bms
+                        alternative_atom_name = True
                     
                     bead2atom: List[str] = _conf_bead2atom.get(bead_idname, [])
                     if len(bead2atom) == 0 and bead_idname not in self._bead_types:
                         bead_type = bead_types_conf.get(bead_idname, max(bead_types_conf.values(), default=-1)+1)
                         bead_types_conf[bead_idname] = bead_type
                         self._bead_types[bead_idname] = bead_type
-                    assert atom_idname not in bead2atom, f"{atom_idname} is already present in bead {bead_idname}. Duplicate mapping"
-                    bead2atom.append(atom_idname)
+                    atom_idname_alternatives = tuple(atom_idname_alternatives)
+                    assert atom_idname_alternatives not in bead2atom, f"{atom_names} is already present in bead {bead_idname}. Duplicate mapping."
+                    bead2atom.append(atom_idname_alternatives)
                     _conf_bead2atom[bead_idname] = bead2atom
             
             for bms in self._bead_mapping_settings.values():

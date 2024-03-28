@@ -174,6 +174,7 @@ class BeadMappingSettings:
         self._bead_all_size = 0
 
         self._atom_settings: List[BeadMappingAtomSettings] = []
+        self._alternative_atom_settings: List[BeadMappingAtomSettings] = []
         self._bead_levels: set[int] = set()       # keep track of all hierarchy levels in the bead
         self._bead_positions: dict[int, int] = {} # for each hierarchy level, keep track of maximum position value
     
@@ -191,9 +192,12 @@ class BeadMappingSettings:
         assert self._is_complete
         return self._bead_all_size
 
-    def add_atom_settings(self, bmas: BeadMappingAtomSettings):
-        self._atom_settings.append(bmas)
-        self.update_atom_settings(bmas)
+    def add_atom_settings(self, bmas: BeadMappingAtomSettings, alternative_atom_name: bool = False):
+        if alternative_atom_name:
+            self._alternative_atom_settings.append(bmas)
+        else:
+            self._atom_settings.append(bmas)
+            self.update_atom_settings(bmas)
     
     def update_atom_settings(self, bmas: BeadMappingAtomSettings):
         self._bead_levels.add(bmas.hierarchy_level)
@@ -243,7 +247,7 @@ class BeadMappingSettings:
         return self.get_hierarchy_level_offset(bmas.hierarchy_level - 1) + bmas.hierarchy_prev_position
     
     def get_bmas_by_atom_idname(self, atom_idname: str):
-        for bmas in self._atom_settings:
+        for bmas in (self._atom_settings + self._alternative_atom_settings):
             if bmas.atom_idname == atom_idname:
                 return bmas
         return None
@@ -279,8 +283,19 @@ class Bead:
         self._is_newly_created: bool = True
         
         assert self.n_all_atoms == len(bead2atoms[0])
-        self._config_ordered_atom_idnames: List[np.ndarray] = [np.array(b2a) for b2a in bead2atoms]
-        self._eligible_atom_idnames: List[str] = set(itertools.chain(*bead2atoms))
+
+        def numpy(list_of_tuples: List[tuple]):
+            max_dimension = max(len(t) for t in list_of_tuples)
+            return np.array([t + ('',) * (max_dimension - len(t)) for t in list_of_tuples])
+
+        self._config_ordered_atom_idnames: List[np.ndarray] = [numpy(b2a) for b2a in bead2atoms]
+        
+        self._eligible_atom_idnames: set[str] = {
+            item
+            for tuple_ in itertools.chain(*bead2atoms)
+            for item in tuple_
+        }
+        self._alternative_name_index = np.zeros((self.n_all_atoms, ), dtype=np.int16)
 
         self._all_atoms:        List[Atom] = []
         self._all_atom_idnames: List[str]  = []
@@ -394,7 +409,11 @@ class Bead:
             if len(coai_index) > 0:
                 updated_config_ordered_atom_idnames.append(coaidnames)
                 if conf_ordered_index is None:
-                    conf_ordered_index = coai_index.item()
+                    for coaid in coai_index:
+                        if self._all_local_index[coaid[0]] == -1:
+                            conf_ordered_index = coaid[0]
+                            self._alternative_name_index[conf_ordered_index] = coaid[1]
+                            break
             else:
                 pass
         if conf_ordered_index is None:
@@ -485,19 +504,35 @@ class Bead:
         config_ordered_atom_idnames = self._config_ordered_atom_idnames[0]
         oaoffset = 0
         for oaindex, oaidname in enumerate(config_ordered_atom_idnames):
-            if (oaindex > len(self._all_atom_idnames)+oaoffset-1) or (oaidname != self._all_atom_idnames[oaindex - oaoffset]):
+            if (oaindex > len(self._all_atom_idnames)+oaoffset-1) or ~(np.isin(self._all_atom_idnames[oaindex - oaoffset], oaidname)):
                 self.missing_atoms_idcs.append(oaindex)
                 oaoffset += 1
         self.missing_atoms_idcs = np.array(self.missing_atoms_idcs)
-        self._all_atom_idnames = config_ordered_atom_idnames
+        self._all_atom_idnames = config_ordered_atom_idnames[np.arange(len(config_ordered_atom_idnames)), self._alternative_name_index]
 
         self._is_complete = True
 
     def sort_atom_idnames(self, atom_idnames):
         coan_max_len = 0
         config_ordered_atom_idnames = np.array([], dtype=int)
+
+        def build_coan(coa, atom_idnames):
+            coan_list = [x[np.isin(x, atom_idnames)] for x in coa if np.any(np.isin(x, atom_idnames))]
+            coan_selected = np.concatenate([x for x in coan_list if len(x) == 1])
+
+            while len(coan_selected) < len(atom_idnames):
+                coan_list_new = []
+                for coan_elem in coan_list:
+                    if len(coan_elem) == 1:
+                        coan_list_new.append(coan_elem)
+                    else:
+                        coan_list_new.append(coan_elem[~np.isin(coan_elem, coan_selected)])
+                coan_list = coan_list_new
+                coan_selected = np.concatenate([x for x in coan_list if len(x) == 1])
+            return coan_selected
+
         for coa in self._config_ordered_atom_idnames:
-            coan = np.array([x for x in coa if np.isin(x, atom_idnames)])
+            coan = build_coan(coa, atom_idnames)
             if len(coan) > coan_max_len:
                 coan_max_len = len(coan)
                 config_ordered_atom_idnames = coan

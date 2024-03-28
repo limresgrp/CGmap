@@ -42,7 +42,8 @@ def main(args=None, running_as_script: bool = True):
         "-o",
         "--output",
         help="Output filename of mapped CG structure.\n" +
-             "Supported file formats are those of MDAnalysis (see https://userguide.mdanalysis.org/stable/formats/index.html)",
+             "Supported file formats are those of MDAnalysis (see https://userguide.mdanalysis.org/stable/formats/index.html).\n" +
+             "If not provided, the output filename will be the one of the input with the '_CG' suffix.",
         type=Path,
         default=None,
     )
@@ -57,7 +58,8 @@ def main(args=None, running_as_script: bool = True):
     parser.add_argument(
         "-ot",
         "--outputtraj",
-        help="Format of the output trajectory (if multiple frames are mapped). Defaults to xtc.",
+        help="Format of the output trajectory (if multiple frames are mapped).\n" +
+             "Defaults to xtc.",
         type=str,
         default='xtc',
     )
@@ -72,7 +74,7 @@ def main(args=None, running_as_script: bool = True):
     parser.add_argument(
         "-s",
         "--selection",
-        help="Selection of atoms. Dafaults to 'all'.",
+        help="Selection of atoms to map. Dafaults to 'all'.",
         type=str,
         default="all",
     )
