@@ -1,11 +1,9 @@
 import logging
 import re
 import itertools
-
 import numpy as np
 
-from typing import Optional, List
-from MDAnalysis.exceptions import NoDataError
+from typing import Optional, List, Union
 from MDAnalysis.core.groups import Atom
 from cgmap.utils import DataDict
 from cgmap.utils.atomType import get_mass_from_name
@@ -17,12 +15,13 @@ class BeadMappingAtomSettings:
         self,
         bead_settings: List[str],
         bead_name: str,
-        atom_idname: str,
+        atom_idnames: List[str],
         num_shared_beads: int
     ) -> None:
         self.bead_name: str = bead_name
-        self.atom_idname: str = atom_idname
-        self.atom_resname, self.atom_name = atom_idname.split(DataDict.STR_SEPARATOR)
+        self.atom_idnames: List[str] = atom_idnames
+        self.atom_names = [atom_idname.split(DataDict.STR_SEPARATOR)[1] for atom_idname in atom_idnames]
+        self.atom_resname = atom_idnames[0].split(DataDict.STR_SEPARATOR)[0]
 
         self._num_shared_beads: int = num_shared_beads
 
@@ -43,7 +42,7 @@ class BeadMappingAtomSettings:
         # Relative index of the atom to e used as anchor point when reconstructing this atom.
         self._local_index_prev: int = -1
 
-        self._mass: float = get_mass_from_name(self.atom_name)
+        self._mass: float = get_mass_from_name(self.atom_names[0])
         self._relative_weight: float = 1.
         self._relative_weight_set: bool = False
 
@@ -174,13 +173,12 @@ class BeadMappingSettings:
         self._bead_all_size = 0
 
         self._atom_settings: List[BeadMappingAtomSettings] = []
-        self._alternative_atom_settings: List[BeadMappingAtomSettings] = []
         self._bead_levels: set[int] = set()       # keep track of all hierarchy levels in the bead
         self._bead_positions: dict[int, int] = {} # for each hierarchy level, keep track of maximum position value
     
     @property
     def shared_atoms(self):
-        return [_as.atom_idname for _as in self._atom_settings if _as._has_to_be_reconstructed and _as._num_shared_beads > 1]
+        return [_as.atom_idnames for _as in self._atom_settings if _as._has_to_be_reconstructed and _as._num_shared_beads > 1]
 
     @property
     def bead_reconstructed_size(self):
@@ -192,12 +190,9 @@ class BeadMappingSettings:
         assert self._is_complete
         return self._bead_all_size
 
-    def add_atom_settings(self, bmas: BeadMappingAtomSettings, alternative_atom_name: bool = False):
-        if alternative_atom_name:
-            self._alternative_atom_settings.append(bmas)
-        else:
-            self._atom_settings.append(bmas)
-            self.update_atom_settings(bmas)
+    def add_atom_settings(self, bmas: BeadMappingAtomSettings):
+        self._atom_settings.append(bmas)
+        self.update_atom_settings(bmas)
     
     def update_atom_settings(self, bmas: BeadMappingAtomSettings):
         self._bead_levels.add(bmas.hierarchy_level)
@@ -223,12 +218,6 @@ class BeadMappingSettings:
         total_relative_weight = sum([_as.relative_weight for _as in self._atom_settings])
         for bmas in self._atom_settings:
             bmas.set_relative_weight(bmas.relative_weight / total_relative_weight)
-
-    def get_ordered_bmas(self):
-        return sorted(
-            self._atom_settings,
-            key=lambda x: self.get_bmas_local_index(x),
-        )
     
     def get_hierarchy_level_offset(self, hierarchy_level):
         if hierarchy_level <= -1:
@@ -246,9 +235,12 @@ class BeadMappingSettings:
     def get_bmas_local_index_prev(self, bmas: BeadMappingAtomSettings):
         return self.get_hierarchy_level_offset(bmas.hierarchy_level - 1) + bmas.hierarchy_prev_position
     
-    def get_bmas_by_atom_idname(self, atom_idname: str):
-        for bmas in (self._atom_settings + self._alternative_atom_settings):
-            if bmas.atom_idname == atom_idname:
+    def get_bmas_by_atom_idname(self, atom_idnames: Union[str, List[str]]):
+        for bmas in self._atom_settings:
+            if isinstance(atom_idnames, str):
+                if atom_idnames in bmas.atom_idnames:
+                    return bmas
+            elif all([atom_idname in bmas.atom_idnames for atom_idname in atom_idnames]):
                 return bmas
         return None
 

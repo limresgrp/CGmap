@@ -295,7 +295,6 @@ class Mapper():
                     bead_settings = [x.split(',')[i] for x in all_bead_settings[1:]]
                     bms = self._bead_mapping_settings.get(bead_idname, BeadMappingSettings(bead_idname))
 
-                    alternative_atom_name = False
                     atom_idname_alternatives = []
                     for atom in atom_names.strip().split(','):
                         atom_idname = DataDict.STR_SEPARATOR.join([mol, atom])
@@ -304,17 +303,16 @@ class Mapper():
                         atom2bead_list.append(bead_idname)
                         self._atom2bead[atom_idname] = atom2bead_list
                         
-                        bmas = bms.get_bmas_by_atom_idname(atom_idname)
-                        if bmas is None:
-                            bmas = BeadMappingAtomSettings(
-                                bead_settings,
-                                bead_idname,
-                                atom_idname,
-                                num_shared_beads=len(bead_names)
-                            )
-                            bms.add_atom_settings(bmas, alternative_atom_name=alternative_atom_name)
-                            self._bead_mapping_settings[bead_idname] = bms
-                        alternative_atom_name = True
+                    bmas = bms.get_bmas_by_atom_idname(atom_idname_alternatives)
+                    if bmas is None:
+                        bmas = BeadMappingAtomSettings(
+                            bead_settings,
+                            bead_idname,
+                            atom_idname_alternatives,
+                            num_shared_beads=len(bead_names)
+                        )
+                        bms.add_atom_settings(bmas)
+                        self._bead_mapping_settings[bead_idname] = bms
                     
                     bead2atom: List[str] = _conf_bead2atom.get(bead_idname, [])
                     if len(bead2atom) == 0 and bead_idname not in self._bead_types:
