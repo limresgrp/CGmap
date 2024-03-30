@@ -14,7 +14,7 @@ atoms:
   CG1:  BB  P2CB
   HG12,HG11: BB  !
   HG13,HG12: BB  !
-  CD1,CD:  BB  P3BA
+  CD,CD1:  BB  P3BA
   HD11,HD1: BB  !
   HD12,HD2: BB  !
   HD13,HD3: BB  !
