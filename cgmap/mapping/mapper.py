@@ -1,19 +1,22 @@
 import copy
+import glob
 import logging
 import re
 import os
 import sys
 import yaml
 import traceback
+import itertools
 import numpy as np
 import MDAnalysis as mda
-from MDAnalysis.transformations import set_dimensions
 
+from os.path import dirname, basename
+from MDAnalysis.transformations import set_dimensions
 from collections import OrderedDict
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 from MDAnalysis.core.groups import Atom
-
+from cgmap.mapping.utils import parse_slice
 from .bead import BeadMappingSettings, BeadMappingAtomSettings, Bead
 from cgmap.utils import DataDict
 from cgmap.utils.atomType import get_type_from_name
@@ -21,16 +24,21 @@ from cgmap.utils.atomType import get_type_from_name
 
 class Mapper():
 
+    _map_func: Callable
+    _map_impl_func: Callable
+
     u: mda.Universe = None
+    trajectory = None
     bead_types_filename: str = "bead_types.yaml"
 
     _weigth_based_on: str = 'mass'
-    _atom2bead: dict[str, str] = {}
-    _bead2atom: dict[str, List[str]] = {}
-    _bead_types: dict[str, int] = {}
-    _bead_mapping_settings: dict[str, BeadMappingSettings] = {}
-    _bead_cm: dict[str, str] = {}
+    _atom2bead: Dict[str, str] = {}
+    _bead2atom: Dict[str, List[str]] = {}
+    _bead_types: Dict[str, int] = {}
+    _bead_mapping_settings: Dict[str, BeadMappingSettings] = {}
+    _bead_cm: Dict[str, str] = {}
 
+    _appearence_idnames: Dict[str, str] = {}
     _incomplete_beads: List[Bead] = []
     _complete_beads:   List[Bead] = []
     _ordered_beads:    List[Bead] = []
@@ -86,6 +94,12 @@ class Mapper():
         return len(self._bead_types)
 
     # Properties of mapped instance
+
+    @property
+    def num_frames(self):
+        if self._atom_positions is None:
+            return None
+        return len(self._atom_positions)
     
     @property
     def bead2atom_idcs(self):
@@ -142,6 +156,8 @@ class Mapper():
     
     @property
     def atom_forces(self):
+        if self._atom_forces is None:
+            return None
         if np.all(np.isnan(self._atom_forces)):
             return None
         return np.nan_to_num(self._atom_forces)
@@ -167,6 +183,7 @@ class Mapper():
     
     @property
     def bead_optim_forces(self):
+        MAX_FRAMES = 1000
         try:
             from aggforce import linearmap as lm
             from aggforce import agg as ag
@@ -175,14 +192,26 @@ class Mapper():
                 idcs = self.bead2atom_idcs
                 idcs = [[i for i in id if ~np.any(np.isnan(self._atom_forces[0, i]))] for id in idcs]
                 cmap = lm.LinearMap(idcs, n_fg_sites=self.num_atoms)
-                constraints = cf.guess_pairwise_constraints(self._atom_positions, threshold=1e-3)
+                # constraints = cf.guess_pairwise_constraints(self._atom_positions, threshold=1e-3)
+                constraints = None
+
+                if self.num_frames > MAX_FRAMES:
+                    # Sample uniformly from rows of A
+                    sampled_rows = np.sort(np.random.choice(self.num_frames, size=MAX_FRAMES, replace=False))
+                    atom_forces = self.atom_forces[sampled_rows]
+                else:
+                    # Sample from A directly
+                    atom_forces = self.atom_forces
+
+                self.logger.info(f"Optimizing the mapping of atomistic forces to CG...")
                 self._bead_optim_forces = ag.project_forces(
                     method=ag.linearmap.qp_linear_map_per_cg_site, # ag.linearmap.constraint_aware_uni_map
                     xyz=None,
-                    forces=self.atom_forces,
+                    forces=atom_forces,
                     config_mapping=cmap,
                     constrained_inds=constraints,
                 )
+                self._bead_optim_forces["projected_forces"] = np.einsum('ijk,bj->ibk', self.atom_forces, self.bead2atom_forces_weights)
             return self._bead_optim_forces
         except:
             return None
@@ -235,9 +264,69 @@ class Mapper():
             DataDict.BEAD2ATOM_WEIGHTS:   self._bead2atom_weights,
         }.items() if v is not None}
 
-    def __init__(self, config: Dict, logger = None) -> None:
-        self.config = config
+    def __init__(self, args_dict, logger = None) -> None:
         self.logger = logger if logger is not None else logging.getLogger()
+
+        config: Dict[str, str] = dict()
+
+        yaml_config = args_dict.pop("config", None)
+        if yaml_config is not None:
+            config.update(yaml.safe_load(Path(yaml_config).read_text()))
+        
+        args_dict = {key: value for key, value in args_dict.items() if value is not None}
+        config.update(args_dict)
+
+        if config.get("trajslice", None) is not None:
+            config["trajslice"] = parse_slice(config["trajslice"])
+
+        input = config.get("input")
+        inputtraj = config.get("inputtraj", None)
+
+        if os.path.isdir(input):
+            input_folder = input
+            input_format = config.get("inputformat", "*")
+            filter = config.get("filter", None)
+            input_basenames = None
+            if filter is not None:
+                with open(filter, 'r') as f:
+                    input_basenames = [line.strip() for line in f.readlines()]
+            self.input_filenames = [
+                fname for fname in
+                list(glob.glob(os.path.join(input_folder, f"*.{input_format}")))
+                if input_basenames is None
+                or basename(fname).replace(f".{input_format}", "") in input_basenames
+            ]
+        else:
+            input_folder = None
+            input_filename = input
+            self.input_filenames = [input_filename]
+        
+        if inputtraj is None:
+            self.input_trajnames = [None for _ in range(len(self.input_filenames))]
+        else:
+            if os.path.isdir(inputtraj):
+                traj_folder = inputtraj
+                traj_format = config.get("trajformat", "*")
+                filter = config.get("filter", None)
+                input_basenames = None
+                if filter is not None:
+                    with open(filter, 'r') as f:
+                        input_basenames = [line.strip() for line in f.readlines()]
+                self.input_trajnames = [
+                    fname for fname in
+                    list(glob.glob(os.path.join(traj_folder, f"*.{traj_format}")))
+                    if input_basenames is None
+                    or basename(fname).replace(f".{traj_format}", "") in input_basenames
+                ]
+            else:
+                self.input_trajnames = [inputtraj]
+
+        self._map_impl_func = self._map_impl if config.get("isatomistic", False) else self._map_impl_cg
+
+        self.config = config
+        self._weigth_based_on = config.get("weigth_based_on", "mass")
+        self.trajectory = None
+
         mapping_folder = config.get("mapping", None)
         if mapping_folder is None:
             raise Exception(
@@ -248,14 +337,55 @@ class Mapper():
                 """
             )
         if os.path.isabs(mapping_folder):
-            self._root = mapping_folder
+            self._root_mapping = mapping_folder
         else:
-            self._root = os.path.join(os.path.dirname(__file__), '..', 'data', mapping_folder)
-        self._weigth_based_on = config.get("weigth_based_on", "mass")
-
+            self._root_mapping = os.path.join(os.path.dirname(__file__), '..', 'data', mapping_folder)
+        
         # Iterate configuration files and load all mappings
         self._clear_mappings()
         self._load_mappings()
+    
+    def __call__(self, *args, **kwargs):
+        for input_filename, input_trajname in self.iterate():
+            yield self.map_impl(input_filename, input_trajname)
+    
+    def iterate(self, *args, **kwargs):
+        for input_filename, input_trajname in zip(self.input_filenames, self.input_trajnames):
+            yield input_filename, input_trajname
+    
+    def map(self, index: int = 0):
+        input_filename = self.input_filenames[index]
+        input_trajname = self.input_trajnames[index]
+        return self.map_impl(input_filename, input_trajname)
+    
+    def map_impl(self, input_filename, input_trajname):
+        self.config["input"] = input_filename
+        self.config["inputtraj"] = [input_trajname] if input_trajname is not None else []
+        self.logger.info(f"Mapping {input_filename} structure")
+
+        self._clear_map()
+
+        u = mda.Universe(
+            self.config.get("input"),
+            *self.config.get("inputtraj", []),
+            **self.config.get("extrakwargs", {}))
+        
+        trajslice = self.config.get("trajslice", None)
+        if trajslice is None:
+            self.trajectory = u.trajectory
+        else:
+            self.trajectory = u.trajectory[trajslice]
+
+        selection = self.config.get("selection", "all")
+        self.selection = u.select_atoms(selection)
+
+        self._map_impl_func()
+        return self
+
+    def __len__(self):
+        if self.trajectory is None:
+            return 0
+        return len(self.trajectory)
 
     def _clear_mappings(self):
         self._atom2bead.clear()
@@ -270,20 +400,20 @@ class Mapper():
         # Load bead types file, if existent.
         # It contains the bead type to identify each bead inside the NN
         # Different beads could have the same bead type (for example, all backbone beads could use the same bead type)
-        bead_types_filename = os.path.join(self._root, self.bead_types_filename)
+        bead_types_filename = os.path.join(self._root_mapping, self.bead_types_filename)
         if os.path.isfile(bead_types_filename):
             bead_types_conf: dict = yaml.safe_load(Path(bead_types_filename).read_text())
         else:
             bead_types_conf: dict = dict()
         
         # Iterate mapping files -> 1 mapping file = 1 residue mapping
-        for filename in os.listdir(self._root):
+        for filename in os.listdir(self._root_mapping):
             if filename == self.bead_types_filename:
                 continue
             
             _conf_bead2atom = OrderedDict({})
 
-            conf: dict = OrderedDict(yaml.safe_load(Path(os.path.join(self._root, filename)).read_text()))
+            conf: dict = OrderedDict(yaml.safe_load(Path(os.path.join(self._root_mapping, filename)).read_text()))
             mol: str = conf.get("molecule")
             atoms_settings: dict[str, str] = conf.get("atoms")
             for atom_names, bead_settings_str in atoms_settings.items():
@@ -324,6 +454,17 @@ class Mapper():
                     bead2atom.append(atom_idname_alternatives)
                     _conf_bead2atom[bead_idname] = bead2atom
             
+            bead_names_ordered = []
+            for bead_name in itertools.chain(*self._atom2bead.values()):
+                if bead_name not in bead_names_ordered:
+                    bead_names_ordered.append(bead_name)
+            for k, v in self._atom2bead.items():
+                new_v = []
+                for bns in bead_names_ordered:
+                    if bns in v:
+                        new_v.append(bns)
+                self._atom2bead[k] = new_v
+            
             for bms in self._bead_mapping_settings.values():
                 bms.complete()
                 self._max_bead_reconstructed_atoms = max(self._max_bead_reconstructed_atoms, bms.bead_reconstructed_size)
@@ -343,58 +484,36 @@ class Mapper():
 
     def _load_extra_mappings(self, bead_splits, atom_name, bead_idname):
         return
-    
+
     def _clear_map(self):
+        self._appearence_idnames.clear()
         self._incomplete_beads.clear()
         self._complete_beads.clear()
         self._ordered_beads.clear()
         self._n_beads = 0
         self._n_atoms = 0
         self._bead_optim_forces = None
-
-    def mapcg(self):
-        self._clear_map()
-        
-        self.trajslice = self.config.get("trajslice", None)
-        self.u = mda.Universe(self.config.get("input"), *self.config.get("inputtraj", []), **self.config.get("extrakwargs", {}))
-
-        selection = self.config.get("selection", "all")
-        self.sel = self.u.select_atoms(selection)
-        
-        return self.map_impl_cg()
     
-    def map(self):
-        self._clear_map()
-        
-        self.trajslice = self.config.get("trajslice", None)
-        self.u = mda.Universe(self.config.get("input"), *self.config.get("inputtraj", []), **self.config.get("extrakwargs", {}))
-
-        selection = self.config.get("selection", "all")
-        self.sel = self.u.select_atoms(selection)
-        
-        return self.map_impl()
-    
-    def map_impl_cg(
+    def _map_impl_cg(
         self,
         conf_id: int = 0 # Which configuration to select for naming atoms
     ):
-        self._bead_resnames =   self.sel.atoms.resnames
-        self._bead_names =      self.sel.atoms.names
+        self._bead_resnames =   self.selection.atoms.resnames
+        self._bead_names =      self.selection.atoms.names
         self._bead_idnames = np.array([
             f"{resname}{DataDict.STR_SEPARATOR}{bead}"
             for resname, bead in zip(self._bead_resnames, self._bead_names)
         ])
-        self._bead_resindices = self.sel.atoms.resindices
-        self._bead_resnums =    self.sel.atoms.resnums
-        self._bead_segids =     self.sel.atoms.segids
+        self._bead_resindices = self.selection.atoms.resindices
+        self._bead_resnums =    self.selection.atoms.resnums
+        self._bead_segids =     self.selection.atoms.segids
 
         bead_positions = []
         cell_dimensions = []
         
         try:
-            traj = self.u.trajectory if self.trajslice is None else self.u.trajectory[self.trajslice]
-            for ts in traj:
-                bead_pos = self.sel.positions
+            for ts in self.trajectory:
+                bead_pos = self.selection.positions
                 if ts.dimensions is not None:
                     cell_dimensions.append(ts.dimensions)
                 bead_positions.append(bead_pos)
@@ -416,6 +535,8 @@ class Mapper():
         for h, bead_idname in enumerate(self._bead_idnames):
             bead = self._create_bead(bead_idname)
             for atom_idname in bead._config_ordered_atom_idnames[conf_id]:
+                if isinstance(atom_idname, np.ndarray):
+                    atom_idname = atom_idname[0].item()
                 if atom_idnames_missing_multiplicity.get(atom_idname, 0) == 0:
                     atom_idnames.append(atom_idname)
                     atom_resname, atom_name = atom_idname.split(DataDict.STR_SEPARATOR)
@@ -436,20 +557,21 @@ class Mapper():
             
             self._check_bead_completeness(bead)
 
-        self._atom_idnames =    np.array(atom_idnames)
-        self._atom_resnames =   np.array(atom_resnames)
-        self._atom_names =      np.array(atom_names)
+        self._atom_idnames    = np.array(atom_idnames)
+        self._atom_resnames   = np.array(atom_resnames)
+        self._atom_names      = np.array(atom_names)
         self._atom_resindices = np.array(atom_resindices)
-        self._atom_resnums =    np.array(atom_resnums)
+        self._atom_resnums    = np.array(atom_resnums)
         self._atom_segindices = np.array(atom_segindices)
 
         batch, _, xyz = self._bead_positions.shape
         self._atom_positions =  np.zeros((batch, len(self._atom_names), xyz), dtype=self._bead_positions.dtype)
 
-        self.compute_bead2atom_feats()
-        self.compute_extra_map_impl()
+        self._compute_bead2atom_feats()
+        self._compute_extra_map_impl()
+        return self
             
-    def map_impl(self):
+    def _map_impl(self):
         
         bead_idnames =  []
         bead_resnames = []
@@ -459,7 +581,7 @@ class Mapper():
         bead_segids =   []
 
         last_resindex = -1
-        for atom in self.sel.atoms:
+        for atom in self.selection.atoms:
             try:
                 atom_idname = DataDict.STR_SEPARATOR.join([atom.resname, re.sub(r'^(\d+)\s*(.+)', r'\2\1', atom.name)])
 
@@ -491,13 +613,15 @@ class Mapper():
                     atom_index, idcs_to_update = self._update_bead(bead, atom_idname, atom=atom, atom_index=atom_index)
 
                     if idcs_to_update is not None:
+                        update_go_than = idcs_to_update.min()
                         for bead2update in self._incomplete_beads:
                             if bead2update is bead:
                                 continue
-                            atomid2update_mask = np.isin(bead2update._all_atom_idcs, idcs_to_update)
-                            if sum(atomid2update_mask) > 0:
-                                for atomid2update in bead2update._all_atom_idcs[atomid2update_mask]:
-                                    bead2update._all_atom_idcs[bead2update._all_atom_idcs >= atomid2update] -= 1
+                            bead2update._all_atom_idcs[bead2update._all_atom_idcs >= update_go_than] -= 1
+                            # atomid2update_mask = np.isin(bead2update._all_atom_idcs, idcs_to_update)
+                            # if sum(atomid2update_mask) > 0:
+                            #     for atomid2update in bead2update._all_atom_idcs[atomid2update_mask]:
+                            #         bead2update._all_atom_idcs[bead2update._all_atom_idcs >= atomid2update] -= 1
                     
                     self._check_bead_completeness(bead)
                 
@@ -544,7 +668,7 @@ class Mapper():
         self._atom_resnames = np.array(atom_resnames)
         self._atom_names = np.array(atom_names)
         
-        self.compute_bead2atom_feats()
+        self._compute_bead2atom_feats()
         
         # Read trajectory and map atom coords to bead coords
         atom_positions = []
@@ -555,12 +679,10 @@ class Mapper():
         all_atom_idcs = []
         build_all_atom_idcs = True
 
-        self.initialize_extra_pos_impl()
+        self._initialize_extra_pos_impl()
 
         try:
-            traj = self.u.trajectory if self.trajslice is None else self.u.trajectory[self.trajslice]
-            for ts in traj:
-
+            for ts in self.trajectory:
                 pos = np.empty((self._n_atoms, 3), dtype=float)
                 forces = np.empty((self._n_atoms, 3), dtype=float)
                 pos[...] = np.nan
@@ -579,7 +701,7 @@ class Mapper():
                 not_nan_pos = np.nan_to_num(pos)
                 bead_pos = np.sum(not_nan_pos[self._bead2atom_idcs] * self._bead2atom_weights[..., None], axis=1)
                 bead_positions.append(bead_pos)
-                self.update_extra_pos_impl(pos)
+                self._update_extra_pos_impl(pos)
 
                 build_all_atom_idcs = False
         
@@ -591,23 +713,34 @@ class Mapper():
         self._atom_forces =  np.stack(atom_forces, axis=0)
         self._bead_positions =  np.stack(bead_positions, axis=0)
         self._cell = np.stack(cell_dimensions, axis=0) if len(cell_dimensions) > 0 else None
-        self.store_extra_pos_impl()
-        self.compute_extra_map_impl()
+        self._store_extra_pos_impl()
+        self._compute_extra_map_impl()
+        return self
 
-    def compute_extra_map_impl(self):
+    def _compute_extra_map_impl(self):
         return
 
-    def initialize_extra_pos_impl(self):
+    def _initialize_extra_pos_impl(self):
         return
 
-    def update_extra_pos_impl(self, pos):
+    def _update_extra_pos_impl(self, pos):
         return
 
-    def store_extra_pos_impl(self):
+    def _store_extra_pos_impl(self):
         return
     
+    def _appearence_sort_idcs(self, atom_idname: str):
+        def default_idname(atom_idname):
+            return f"999_{atom_idname}"
+        actual_idnames = self._atom2bead[atom_idname]
+        appearence_idnames = [
+            self._appearence_idnames.get(actual_idname, default_idname(atom_idname)) for actual_idname in actual_idnames
+        ]
+        return np.argsort(appearence_idnames)
+    
     def _get_incomplete_bead_from_atom_idname(self, atom_idname: str) -> List[Bead]:
-        bead_idnames = np.unique(self._atom2bead[atom_idname])
+        idx = self._appearence_sort_idcs(atom_idname)
+        bead_idnames = np.array(self._atom2bead[atom_idname])[idx]
         beads = []
         for bead_idname in bead_idnames:
             found = False
@@ -615,7 +748,6 @@ class Mapper():
                 if bead.idname.__eq__(bead_idname) and bead.is_missing_atom(atom_idname):
                     beads.append(bead)
                     found = True
-                    break
             if not found:
                 beads.append(self._create_bead(bead_idname))
         return beads
@@ -643,6 +775,8 @@ class Mapper():
             bead2atoms=copy.deepcopy(self._bead2atom[bead_idname]),
             weigth_based_on=self._weigth_based_on,
         )
+        if bead_idname not in self._appearence_idnames:
+            self._appearence_idnames[bead_idname] = "{:03d}".format(len(self._appearence_idnames.keys())) + f"_{bead_idname}"
         self._incomplete_beads.append(bead)
         self._ordered_beads.append(bead)
         self._n_beads += 1
@@ -664,7 +798,7 @@ class Mapper():
             return True
         return False
     
-    def compute_bead2atom_feats(self):
+    def _compute_bead2atom_feats(self):
         ### Initialize instance mapping ###
         self._bead2atom_idcs = -np.ones((self.num_beads, self.bead_all_size), dtype=int)
         self._bead2atom_weights = np.zeros((self.num_beads, self.bead_all_size), dtype=float)
@@ -674,11 +808,17 @@ class Mapper():
             self._bead2atom_idcs[i, :bead.n_all_atoms] = bead._all_atom_idcs
             self._bead2atom_weights[i, :bead.n_all_atoms] = bead.all_atom_weights / bead.all_atom_weights.sum()
 
-    def save(self, filename: Optional[str] = None, traj_format: Optional[str] = None):
+    def save(
+        self,
+        filename: Optional[str] = None,
+        traj_format: Optional[str] = None,
+        src_unit: str = 'A'
+    ):
+        assert src_unit in ['A', 'nm']
 
         if filename is None:
             p = Path(self.config.get('input'))
-            filename = self.config.get('output',  str(Path(p.parent, p.stem + '_CG' + p.suffix)))
+            filename = self.config.get('output',  str(Path(p.parent, p.stem + '.CG' + p.suffix)))
         
         if len(os.path.dirname(filename)) > 0:
             os.makedirs(os.path.dirname(filename), exist_ok=True)
@@ -702,9 +842,9 @@ class Mapper():
         if box_dimension is not None:
             transform = set_dimensions(box_dimension)
             u.trajectory.add_transformations(transform)
-        sel = u.select_atoms('all')
+        selection = u.select_atoms('all')
         with mda.Writer(filename, n_atoms=u.atoms.n_atoms) as w:
-            w.write(sel.atoms)
+            w.write(selection.atoms)
 
         if len(u.trajectory) > 1:
             if traj_format is None:
@@ -712,4 +852,44 @@ class Mapper():
             filename_traj = str(Path(filename).with_suffix('.' + traj_format))
             with mda.Writer(filename_traj, n_atoms=u.atoms.n_atoms) as w_traj:
                 for ts in u.trajectory:  # Skip the first frame as it's already saved
-                    w_traj.write(sel.atoms)
+                    w_traj.write(selection.atoms)
+    
+    def save_atomistic(self, filename: Optional[str] = None, traj_format: Optional[str] = None):
+
+        if filename is None:
+            p = Path(self.config.get('input'))
+            filename = self.config.get('output',  str(Path(p.parent, p.stem + '.AA' + p.suffix)))
+        
+        if len(os.path.dirname(filename)) > 0:
+            os.makedirs(os.path.dirname(filename), exist_ok=True)
+
+        dataset = self.dataset
+        u = mda.Universe.empty(
+            n_atoms =       dataset[DataDict.NUM_ATOMS],
+            n_residues =    dataset[DataDict.NUM_RESIDUES],
+            n_segments =    len(np.unique(dataset[DataDict.ATOM_SEGIDS])),
+            atom_resindex = dataset[DataDict.ATOM_RESIDCS],
+            trajectory =    True, # necessary for adding coordinates
+        )
+        u.add_TopologyAttr('names',    dataset[DataDict.ATOM_NAMES])
+        u.add_TopologyAttr('types',    dataset[DataDict.ATOM_TYPES])
+        u.add_TopologyAttr('resnames', dataset[DataDict.RESNAMES])
+        u.add_TopologyAttr('resid',    dataset[DataDict.RESIDCS])
+        u.add_TopologyAttr('resnum',   dataset[DataDict.RESNUMBERS])
+        u.add_TopologyAttr('chainID',  dataset[DataDict.ATOM_SEGIDS])
+        u.load_new(np.nan_to_num(dataset.get(DataDict.ATOM_POSITION)), order='fac')
+        box_dimension = dataset.get(DataDict.CELL, None)
+        if box_dimension is not None:
+            transform = set_dimensions(box_dimension)
+            u.trajectory.add_transformations(transform)
+        selection = u.select_atoms('all')
+        with mda.Writer(filename, n_atoms=u.atoms.n_atoms) as w:
+            w.write(selection.atoms)
+
+        if len(u.trajectory) > 1:
+            if traj_format is None:
+                traj_format = self.config.get('outputtraj', 'xtc')
+            filename_traj = str(Path(filename).with_suffix('.' + traj_format))
+            with mda.Writer(filename_traj, n_atoms=u.atoms.n_atoms) as w_traj:
+                for ts in u.trajectory:  # Skip the first frame as it's already saved
+                    w_traj.write(selection.atoms)

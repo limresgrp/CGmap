@@ -43,9 +43,6 @@ BEAD_FORCES: Final[str] = "bead_forces"
 
 # --------------------------------------------- #
 
-BOND_IDCS:  Final[str] = "bond_idcs"
-ANGLE_IDCS:  Final[str] = "angle_idcs"
-DIHEDRAL_IDCS: Final[str] = "dihedral_idcs"
 CELL: Final[str] = "cell"
 PBC: Final[str] = "pbc"
 

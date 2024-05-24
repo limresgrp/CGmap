@@ -392,7 +392,7 @@ class Bead:
             self.resnum = atom.resnum
             self.segid = atom.segid
         self._is_newly_created = False
-        assert atom_idname in self._eligible_atom_idnames, f"Trying to update bead {self.type} with atom {atom_idname} that does not belong to it."
+        assert atom_idname in self._eligible_atom_idnames, f"Trying to update bead {self.name} with atom {atom_idname} that does not belong to it."
 
         conf_ordered_index = None
         updated_config_ordered_atom_idnames = []
