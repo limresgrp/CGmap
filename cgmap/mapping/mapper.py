@@ -812,10 +812,7 @@ class Mapper():
         self,
         filename: Optional[str] = None,
         traj_format: Optional[str] = None,
-        src_unit: str = 'A'
     ):
-        assert src_unit in ['A', 'nm']
-
         if filename is None:
             p = Path(self.config.get('input'))
             filename = self.config.get('output',  str(Path(p.parent, p.stem + '.CG' + p.suffix)))
@@ -854,8 +851,11 @@ class Mapper():
                 for ts in u.trajectory:  # Skip the first frame as it's already saved
                     w_traj.write(selection.atoms)
     
-    def save_atomistic(self, filename: Optional[str] = None, traj_format: Optional[str] = None):
-
+    def save_atomistic(
+        self,
+        filename: Optional[str] = None,
+        traj_format: Optional[str] = None,
+    ):
         if filename is None:
             p = Path(self.config.get('input'))
             filename = self.config.get('output',  str(Path(p.parent, p.stem + '.AA' + p.suffix)))
@@ -893,3 +893,44 @@ class Mapper():
             with mda.Writer(filename_traj, n_atoms=u.atoms.n_atoms) as w_traj:
                 for ts in u.trajectory:  # Skip the first frame as it's already saved
                     w_traj.write(selection.atoms)
+    
+    def save_npz(
+        self,
+        filename: Optional[str] = None,
+        pos_unit: str = 'Angstrom',
+        force_unit: str = 'kJ/(mol*Angstrom)',
+    ):
+        """Save a npz dataset with all atomistic and mapped CG data.
+
+        Args:
+            filename (str): name of the output file. Must be a .npz file
+            pos_unit (str): unit of measure of the atoms/beads positions. Options are [
+                'Angstrom', 'A', 'angstrom', 'Å', 'nm', 'nanometer', 'pm', 'picometer', 'fm', 'femtometer'
+            ]. Default is 'Angstrom'.
+            force_unit (str): unit of measure of the atoms/beads forces. Options are [
+                'kJ/(mol*Angstrom)', 'kJ/(mol*A)', 'kJ/(mol*Å)', 'kJ/(mol*nm)', 'Newton', 'N', 'J/m', 'kcal/(mol*Angstrom)'
+            ].  Default is 'kJ/(mol*Angstrom)'.
+    """
+        
+        dataset = self.dataset
+
+        for key in [DataDict.BEAD_POSITION, DataDict.ATOM_POSITION]:
+            dataset[key] = mda.units.convert(dataset[key], 'Angstrom', pos_unit)
+        
+        for key in [DataDict.BEAD_FORCES, DataDict.ATOM_FORCES]:
+            if key in dataset:
+                dataset[key] = mda.units.convert(dataset[key], 'kJ/(mol*Angstrom)', force_unit)
+        
+        if DataDict.CELL in dataset:
+            cell = dataset[DataDict.CELL]
+            cell[:, :3] = mda.units.convert(cell[:, :3], 'Angstrom', pos_unit)
+        
+        if filename is None:
+            p = Path(self.config.get('input'))
+            filename = self.config.get('output',  str(Path(p.parent, p.stem + '.data' + '.npz')))
+        else:
+            p = Path(filename)
+            if p.suffix != '.npz':
+                filename = filename + '.npz'
+        
+        np.savez(filename, **dataset)
