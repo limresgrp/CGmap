@@ -927,7 +927,7 @@ class Mapper():
         
         if filename is None:
             p = Path(self.config.get('input'))
-            filename = self.config.get('output',  str(Path(p.parent, p.stem + '.data' + '.npz')))
+            filename = str(Path(p.parent, p.stem + '.data' + '.npz'))
         else:
             p = Path(filename)
             if p.suffix != '.npz':
