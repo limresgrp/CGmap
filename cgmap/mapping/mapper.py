@@ -76,6 +76,10 @@ class Mapper():
 
     
     # Properties of mapping
+
+    @property
+    def input_filename(self):
+        return self.config.get('input', None)
     
     @property
     def bead_reconstructed_size(self):
@@ -369,6 +373,7 @@ class Mapper():
             self.config.get("input"),
             *self.config.get("inputtraj", []),
             **self.config.get("extrakwargs", {}))
+        self.universe = u
         
         trajslice = self.config.get("trajslice", None)
         if trajslice is None:
@@ -933,4 +938,5 @@ class Mapper():
             if p.suffix != '.npz':
                 filename = filename + '.npz'
         
+        os.makedirs(dirname(filename), exist_ok=True)
         np.savez(filename, **dataset)
