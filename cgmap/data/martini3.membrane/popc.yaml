@@ -1,0 +1,143 @@
+molecule: POPC
+
+atoms:
+  N:      NC3   P1A
+  C12:    NC3,PO4   3/4,1/4   P2AA,P4AA
+  C13:    NC3   P2AB
+  C14:    NC3   P2AC
+  C15:    NC3   P2AD
+  H12A:   NC3,PO4   3/4,1/4   P3AB,P5AA
+  H12B:   NC3,PO4   3/4,1/4   P3AC,P5AB
+  H13A:   NC3   P3BD
+  H13B:   NC3   P3BE
+  H13C:   NC3   P3BF
+  H14A:   NC3   P3CG
+  H14B:   NC3   P3CH
+  H14C:   NC3   P3CI
+  H15A:   NC3   P3DJ
+  H15B:   NC3   P3DK
+  H15C:   NC3   P3DL
+  C11:    NC3,PO4   1/2,1/2   P3AA,P3CA
+  H11A:   NC3,PO4   P4AB,P4AB # Default weight is 1/2,1/2
+  H11B:   NC3,PO4   P4AC,P4AC
+  
+  P:      PO4   P1A
+  O13:    PO4   P2AA
+  O14:    PO4   P2AB
+  O12:    NC3,PO4   3/4,1/4   P4AA,P2AC
+  O11:    PO4,GL1   2/3,1/3   P2AD,P4AA
+
+  C1:     PO4,GL1   2/3,1/3   P3DB,P3AA
+  HA:     PO4,GL1   2/3,1/3   P4BD,P4AB
+  HB:     PO4,GL1   2/3,1/3   P4BE,P4AC
+  C2:     GL1,GL2   2/3,1/3   P2AA,P3AA
+  HS:     GL1,GL2   2/3,1/3   P3AD,P4AB
+  O21:    GL1,GL2,C1A   1/2,1/4,1/4   P1A,P4AA,P4AA
+  C21:    GL1,C1A   1/2,1/2   P2AB,P3AA
+  O22:    GL1   P3BB
+  
+  C22:    GL1,C1A   2/3,1/3   P3BC,P2AA
+  H2R:    GL1,C1A   2/3,1/3   P4BD,P3AC
+  H2S:    GL1,C1A   2/3,1/3   P4BE,P3AD
+  C3:     PO4,GL2   3/4,1/4   P4BB,P2AA
+  HX:     PO4,GL2   3/4,1/4   P5BA,P3AD
+  HY:     PO4,GL2   3/4,1/4   P5BB,P3AE
+  O31:    GL2   P1A
+  C31:    GL1,GL2,C1B   1/3,1/3,1/3   P2AC,P2AB,P3AA
+  O32:    GL2   P3BC
+  C32:    GL2,C1B   1/3,2/3   P3BB,P2AA
+  H2X:    GL2,C1B   1/3,2/3   P4BC,P3AC
+  H2Y:    GL2,C1B   1/3,2/3   P4BD,P3AD
+  C23:    C1A   P1A
+  H3R:    C1A   P2AC
+  H3S:    C1A   P2AD
+  C24:    C1A,D2A   3/4,1/4   P2AB,P4AA
+  H4R:    C1A   P3BE
+  H4S:    C1A   P3BF
+  C25:    C1A,D2A   1/2,1/2   P3BB,P3AA
+  H5R:    C1A   P4BC
+  H5S:    C1A   P4BD
+  C26:    C1A,D2A   1/4,3/4   P4BB,P2AA
+  H6R:    D2A   P3AC
+  H6S:    D2A   P3AD
+  C27:    D2A   P1A
+  H7R:    D2A   P2AC
+  H7S:    D2A   P2AD
+  C28:    D2A,C3A   3/4,1/4   P2AB,P5AA
+  H8R:    D2A   P3BE
+  H8S:    D2A   P3BF
+  C29:    D2A,C3A   2/3,1/3   P3BB,P4AA
+  H91:    D2A,C3A   1/2,1/2   P4BC,P5AB
+  C210:   D2A,C3A   1/3,2/3   P4BB,P3AA
+  H101:   D2A,C3A   1/2,1/2   P5BB,P4AC
+  C211:   D2A,C3A   1/4,3/4   P5BA,P2AA
+  H11R:   C3A   P3AC
+  H11S:   C3A   P3AD
+  C212:   C3A   P1A
+  H12R:   C3A   P2AC
+  H12S:   C3A   P2AD
+  C213:   C3A,C4A   3/4,1/4   P2AB,P4AA
+  H13R:   C3A   P3BE
+  H13S:   C3A   P3BF
+  C214:   C3A,C4A   1/2,1/2   P3BB,P3AA
+  H14R:   C4A   P4AB
+  H14S:   C4A   P4AC
+  C215:   C3A,C4A   1/4,3/4   P4BB,P2AA
+  H15R:   C4A   P3AC
+  H15S:   C4A   P3AD
+  C216:   C4A   P1A
+  H16R:   C4A   P2AC
+  H16S:   C4A   P2AD
+  C217:   C4A   P2AB
+  H17R:   C4A   P3BE
+  H17S:   C4A   P3BF
+  C218:   C4A   P3BB
+  H18R:   C4A   P4BD
+  H18S:   C4A   P4BE
+  H18T:   C4A   P4BF
+
+  C33:    C1B   P1A
+  H3X:    C1B   P2AC
+  H3Y:    C1B   P2AD
+  C34:    C1B,C2B   2/3,1/3   P2AB,P4AA
+  H4X:    C1B,C2B   2/3,1/3   P3BE,P5AB
+  H4Y:    C1B,C2B   2/3,1/3   P3BF,P5AC
+  C35:    C1B,C2B   1/2,1/2   P3BB,P3AA
+  H5X:    C1B,C2B   1/2,1/2   P4BB,P4AC
+  H5Y:    C1B,C2B   1/2,1/2   P4BC,P4AD
+  C36:    C1B,C2B   1/3,2/3   P4BA,P2AA
+  H6X:    C1B,C2B   1/3,2/3   P5AA,P3AC
+  H6Y:    C1B,C2B   1/3,2/3   P5AB,P3AD
+  C37:    C2B   P1A
+  H7X:    C2B   P2AC
+  H7Y:    C2B   P2AD
+  C38:    C2B,C3B   3/4,1/4   P2AB,P5AA
+  H8X:    C2B,C3B   3/4,1/4   P3BE,P6AA
+  H8Y:    C2B,C3B   3/4,1/4   P3BF,P6AB
+  C39:    C2B,C3B   2/3,1/3   P3BB,P4AA
+  H9X:    C2B,C3B   2/3,1/3   P4BE,P5AB
+  H9Y:    C2B,C3B   2/3,1/3   P4BF,P5AC
+  
+  C310:   C2B,C3B   1/2,1/2   P4BB,P3AA
+  H10X:   C2B,C3B   1/2,1/2   P5BD,P4AC
+  H10Y:   C2B,C3B   1/2,1/2   P5BE,P4AD
+  C311:   C2B,C3B   1/3,2/3   P5BA,P2AA
+  H11X:   C2B,C3B   1/3,2/3   P6AA,P3AC
+  H11Y:   C2B,C3B   1/3,2/3   P6AB,P3AD
+  C312:   C3B   P1A
+  H12X:   C3B   P2AC
+  H12Y:   C3B   P2AD
+  C313:   C3B,C4B   2/3,1/3   P2AB,P3AA
+  H13X:   C3B,C4B   2/3,1/3   P3BE,P4AA
+  H13Y:   C3B,C4B   2/3,1/3   P3BF,P4AB
+  
+  C314:   C3B,C4B   1/2,1/2   P3BB,P2AA
+  H14X:   C3B,C4B   1/2,1/2   P4BE,P3AB
+  H14Y:   C3B,C4B   1/2,1/2   P4BF,P3AC
+  C315:   C3B,C4B   1/3,2/3   P4BB,P1A
+  H15X:   C3B,C4B   1/3,2/3   P5BB,P2AC
+  H15Y:   C3B,C4B   1/3,2/3   P5BC,PA2D
+  C316:   C4B   P2AB
+  H16X:   C4B   P3BD
+  H16Y:   C4B   P3BE
+  H16Z:   C4B   P3BF
