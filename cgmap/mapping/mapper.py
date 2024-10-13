@@ -822,7 +822,7 @@ class Mapper():
             p = Path(self.config.get('input'))
             filename = self.config.get('output',  str(Path(p.parent, p.stem + '.CG' + p.suffix)))
         
-        if len(os.path.dirname(filename)) > 0:
+        if len(dirname(filename)) > 0:
             os.makedirs(os.path.dirname(filename), exist_ok=True)
 
         dataset = self.dataset
@@ -855,6 +855,8 @@ class Mapper():
             with mda.Writer(filename_traj, n_atoms=u.atoms.n_atoms) as w_traj:
                 for ts in u.trajectory:  # Skip the first frame as it's already saved
                     w_traj.write(selection.atoms)
+        
+        self.logger.info(f"Coarse-grained structure saved as {filename}")
     
     def save_atomistic(
         self,
@@ -865,7 +867,7 @@ class Mapper():
             p = Path(self.config.get('input'))
             filename = self.config.get('output',  str(Path(p.parent, p.stem + '.AA' + p.suffix)))
         
-        if len(os.path.dirname(filename)) > 0:
+        if len(dirname(filename)) > 0:
             os.makedirs(os.path.dirname(filename), exist_ok=True)
 
         dataset = self.dataset
@@ -898,6 +900,8 @@ class Mapper():
             with mda.Writer(filename_traj, n_atoms=u.atoms.n_atoms) as w_traj:
                 for ts in u.trajectory:  # Skip the first frame as it's already saved
                     w_traj.write(selection.atoms)
+        
+        self.logger.info(f"Atomistic structure saved as {filename}")
     
     def save_npz(
         self,
@@ -938,5 +942,7 @@ class Mapper():
             if p.suffix != '.npz':
                 filename = filename + '.npz'
         
-        os.makedirs(dirname(filename), exist_ok=True)
+        if len(dirname(filename)) > 0:
+            os.makedirs(dirname(filename), exist_ok=True)
         np.savez(filename, **dataset)
+        self.logger.info(f"npz dataset saved as {filename}")

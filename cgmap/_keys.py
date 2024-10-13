@@ -25,7 +25,7 @@ ATOM_NAMES: Final[str] = "atom_names"
 ATOM_TYPES: Final[str] = "atom_types"
 ATOM_RESIDCS: Final[str] = "atom_residcs"
 ATOM_RESNUMBERS: Final[str] = "atom_resnumbers"
-ATOM_SEGIDS: Final[str] = "ATOM_SEGIDS"
+ATOM_SEGIDS: Final[str] = "atom_segids"
 ATOM_FORCES: Final[str] = "atom_forces"
 
 # --------------------------------------------- #
