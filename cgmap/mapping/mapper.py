@@ -906,8 +906,10 @@ class Mapper():
     def save_npz(
         self,
         filename: Optional[str] = None,
-        pos_unit: str = 'Angstrom',
-        force_unit: str = 'kJ/(mol*Angstrom)',
+        from_pos_unit: str = 'nm',
+        to_pos_unit: str = 'nm',
+        from_force_unit: str = 'kJ/(mol*nm)',
+        to_force_unit: str = 'kJ/(mol*nm)',
     ):
         """Save a npz dataset with all atomistic and mapped CG data.
 
@@ -924,15 +926,15 @@ class Mapper():
         dataset = self.dataset
 
         for key in [DataDict.BEAD_POSITION, DataDict.ATOM_POSITION]:
-            dataset[key] = mda.units.convert(dataset[key], 'Angstrom', pos_unit)
+            dataset[key] = mda.units.convert(dataset[key], from_pos_unit, to_pos_unit)
         
         for key in [DataDict.BEAD_FORCES, DataDict.ATOM_FORCES]:
             if key in dataset:
-                dataset[key] = mda.units.convert(dataset[key], 'kJ/(mol*Angstrom)', force_unit)
+                dataset[key] = mda.units.convert(dataset[key], from_force_unit, to_force_unit)
         
         if DataDict.CELL in dataset:
             cell = dataset[DataDict.CELL]
-            cell[:, :3] = mda.units.convert(cell[:, :3], 'Angstrom', pos_unit)
+            cell[:, :3] = mda.units.convert(cell[:, :3], from_pos_unit, to_pos_unit)
         
         if filename is None:
             p = Path(self.config.get('input'))
