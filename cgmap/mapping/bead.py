@@ -28,23 +28,11 @@ class BeadMappingAtomSettings:
         self._contributes_to_cm: bool = True
         self._is_cm: bool = False
         self._has_cm: bool = False
-
-        self._has_to_be_reconstructed: bool = False
-        self._hierarchy_level: int = -1
-        self._hierarchy_name: str = ''
-        self._hierarchy_previous_name: str = ''
-
-        # Relative index that keeps track of the order in which atoms are reconstructed inseide the residue.
-        # _local_index = 0 is the atom with lowest hierarchy level and name A.
-        # _local_index = 1 is the atom with lowest hierarchy level and name B OR the atom with second lowest hierarchy level and name A.
-        # and so on...
-        self._local_index: int = -1
-        # Relative index of the atom to e used as anchor point when reconstructing this atom.
-        self._local_index_prev: int = -1
-
         self._mass: float = get_mass_from_name(self.atom_names[0])
         self._relative_weight: float = 1.
         self._relative_weight_set: bool = False
+
+        self._has_to_be_reconstructed: bool = True
 
         for setting in bead_settings:
             try:
@@ -53,20 +41,6 @@ class BeadMappingAtomSettings:
                     continue
                 if setting == "CM":
                     self.set_is_cm()
-                    continue
-
-                hierarchy_pattern = 'P(\d+)([A-Z])([A-Z])*'
-                result = re.search(hierarchy_pattern, setting)
-                if result is not None:
-                    groups = result.groups()
-                    assert len(groups) == 3
-                    self.set_has_to_be_reconstructed()
-                    self.set_hierarchy_level(int(groups[0]))
-                    if groups[-1] is None:
-                        self.set_hierarchy_name(groups[1])
-                    else:
-                        self.set_hierarchy_previous_name(groups[1])
-                        self.set_hierarchy_name(groups[2])
                     continue
                 
                 weight_pattern = '(\d)/(\d)'
@@ -77,7 +51,7 @@ class BeadMappingAtomSettings:
                     self.set_relative_weight(float(int(groups[0])/int(groups[1])))
                     continue
 
-                weight_pattern = '(\d*(?:\.\d+)?)'
+                weight_pattern = '(?<![A-Za-z])(\d+(?:\.\d+)?)(?![A-Za-z])'
                 result = re.search(weight_pattern, setting)
                 if result is not None:
                     groups = result.groups()
@@ -112,22 +86,6 @@ class BeadMappingAtomSettings:
         return self._has_to_be_reconstructed
     
     @property
-    def hierarchy_level(self):
-        return self._hierarchy_level
-    
-    @property
-    def hierarchy_position(self):
-        if self._hierarchy_name == '':
-            return 0
-        return ord(self._hierarchy_name) - ord('A')
-
-    @property
-    def hierarchy_prev_position(self):
-        if self._hierarchy_previous_name == '':
-            return 0
-        return ord(self._hierarchy_previous_name) - ord('A')
-    
-    @property
     def relative_weight(self):
         return self._relative_weight
     
@@ -144,21 +102,6 @@ class BeadMappingAtomSettings:
     def set_has_to_be_reconstructed(self, has_to_be_reconstructed: bool = True):
         self._has_to_be_reconstructed = has_to_be_reconstructed
     
-    def set_hierarchy_level(self, hierarchy_level: int):
-        self._hierarchy_level = hierarchy_level
-    
-    def set_hierarchy_name(self, hierarchy_name: str):
-        self._hierarchy_name = hierarchy_name
-    
-    def set_hierarchy_previous_name(self, hierarchy_previous_name: str):
-        self._hierarchy_previous_name = hierarchy_previous_name
-    
-    def set_local_index(self, local_index: int):
-        self._local_index = local_index
-    
-    def set_local_index_prev(self, local_index_prev: int):
-        self._local_index_prev = local_index_prev
-    
     def set_relative_weight(self, weight: float):
         self._relative_weight_set = True
         self._relative_weight = weight
@@ -173,8 +116,6 @@ class BeadMappingSettings:
         self._bead_all_size = 0
 
         self._atom_settings: List[BeadMappingAtomSettings] = []
-        self._bead_levels: set[int] = set()       # keep track of all hierarchy levels in the bead
-        self._bead_positions: dict[int, int] = {} # for each hierarchy level, keep track of maximum position value
     
     @property
     def shared_atoms(self):
@@ -195,13 +136,8 @@ class BeadMappingSettings:
         self.update_atom_settings(bmas)
     
     def update_atom_settings(self, bmas: BeadMappingAtomSettings):
-        self._bead_levels.add(bmas.hierarchy_level)
-        self._bead_levels = set(sorted(self._bead_levels))
-        self._bead_positions[bmas.hierarchy_level] = max(self._bead_positions.get(bmas.hierarchy_level, 0), bmas.hierarchy_position)
         has_cm = bmas.is_cm
         for saved_bmas in self._atom_settings:
-            saved_bmas.set_local_index(self.get_bmas_local_index(saved_bmas))
-            saved_bmas.set_local_index_prev(self.get_bmas_local_index_prev(saved_bmas))
             if saved_bmas.has_cm:
                 has_cm = True
             if has_cm:    
@@ -218,23 +154,7 @@ class BeadMappingSettings:
         total_relative_weight = sum([_as.relative_weight for _as in self._atom_settings])
         for bmas in self._atom_settings:
             bmas.set_relative_weight(bmas.relative_weight / total_relative_weight)
-    
-    def get_hierarchy_level_offset(self, hierarchy_level):
-        if hierarchy_level <= -1:
-            return -1
-        offset = 0
-        for bead_level in self._bead_levels:
-            if bead_level >= hierarchy_level:
-                return offset
-            offset += self._bead_positions[bead_level] + 1
-        raise Exception(f'Hierarchy level {hierarchy_level} is not present in the bead')
-    
-    def get_bmas_local_index(self, bmas: BeadMappingAtomSettings):
-        return self.get_hierarchy_level_offset(bmas.hierarchy_level) + bmas.hierarchy_position
-    
-    def get_bmas_local_index_prev(self, bmas: BeadMappingAtomSettings):
-        return self.get_hierarchy_level_offset(bmas.hierarchy_level - 1) + bmas.hierarchy_prev_position
-    
+
     def get_bmas_by_atom_idname(self, atom_idnames: Union[str, List[str]]):
         for bmas in self._atom_settings:
             if isinstance(atom_idnames, str):
@@ -294,9 +214,6 @@ class Bead:
 
         self._all_atom_idcs = np.arange(atoms_offset, atoms_offset + self.n_all_atoms)
         self._all_atom_weights = np.zeros((self.n_all_atoms, ), dtype=np.float32)
-        self._all_hierarchy_levels = -np.ones((self.n_all_atoms, ), dtype=np.int16)
-        self._all_local_index = -np.ones((self.n_all_atoms, ), dtype=np.int16)
-        self._all_local_index_anchor = -np.ones((self.n_all_atoms, ), dtype=np.int16)
         
         self._reconstructed_atom_idnames: List[str]      = []
         self._reconstructed_conf_ordered_idcs: List[int] = []
@@ -389,8 +306,8 @@ class Bead:
     ):
         if self._is_newly_created and atom is not None:
             self.resindex = atom.resindex
-            self.resnum = atom.resnum
-            self.segid = atom.segid
+            self.resnum   = atom.resnum
+            self.segid    = atom.segid
         self._is_newly_created = False
         assert atom_idname in self._eligible_atom_idnames, f"Trying to update bead {self.name} with atom {atom_idname} that does not belong to it."
 
@@ -402,10 +319,9 @@ class Bead:
                 updated_config_ordered_atom_idnames.append(coaidnames)
                 if conf_ordered_index is None:
                     for coaid in coai_index:
-                        if self._all_local_index[coaid[0]] == -1:
-                            conf_ordered_index = coaid[0]
-                            self._alternative_name_index[conf_ordered_index] = coaid[1]
-                            break
+                        conf_ordered_index = coaid[0]
+                        self._alternative_name_index[conf_ordered_index] = coaid[1]
+                        break
             else:
                 pass
         if conf_ordered_index is None:
@@ -417,10 +333,6 @@ class Bead:
         if atom is not None:
             self._all_atoms.append(atom)
         self._all_atom_idnames.append(atom_idname)
-        
-        self._all_hierarchy_levels[conf_ordered_index] = bmas.hierarchy_level
-        self._all_local_index[conf_ordered_index] = bmas._local_index
-        self._all_local_index_anchor[conf_ordered_index] = bmas._local_index_prev
 
         # All atoms without the '!' flag contribute to the bead position
         # Those with the '!' flag appear with weight 0

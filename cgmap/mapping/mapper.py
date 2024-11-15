@@ -401,7 +401,7 @@ class Mapper():
         self._max_bead_reconstructed_atoms: int = 0
         self._max_bead_all_atoms: int = 0
 
-    def _load_mappings(self):
+    def _load_mappings(self, bms_class = BeadMappingSettings, bmas_class = BeadMappingAtomSettings):
         # Load bead types file, if existent.
         # It contains the bead type to identify each bead inside the NN
         # Different beads could have the same bead type (for example, all backbone beads could use the same bead type)
@@ -428,7 +428,7 @@ class Mapper():
                 for i, bn in enumerate(bead_names):
                     bead_idname = DataDict.STR_SEPARATOR.join([mol, bn])
                     bead_settings = [x.split(',')[i] for x in all_bead_settings[1:]]
-                    bms = self._bead_mapping_settings.get(bead_idname, BeadMappingSettings(bead_idname))
+                    bms = self._bead_mapping_settings.get(bead_idname, bms_class(bead_idname))
 
                     atom_idname_alternatives = []
                     for atom in atom_names.strip().split(','):
@@ -440,7 +440,7 @@ class Mapper():
                         
                     bmas = bms.get_bmas_by_atom_idname(atom_idname_alternatives)
                     if bmas is None:
-                        bmas = BeadMappingAtomSettings(
+                        bmas = bmas_class(
                             bead_settings,
                             bead_idname,
                             atom_idname_alternatives,
@@ -769,9 +769,9 @@ class Mapper():
             self._n_atoms -= 1
         return bead.update(atom_idname, bmas, atom=atom, atom_index=atom_index)
     
-    def _create_bead(self, bead_idname: str):
+    def _create_bead(self, bead_idname: str, bead_class = Bead):
         bms = self._bead_mapping_settings.get(bead_idname)
-        bead = Bead(
+        bead = bead_class(
             bms=bms,
             id=self._n_beads,
             idname=bead_idname,
