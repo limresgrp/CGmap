@@ -1,0 +1,19 @@
+molecule: GLU
+
+atoms:
+  N:   BB  P1AA
+  H,HN: BB  !
+  CA:  BB  P0A
+  HA:  BB  !
+  CB:  BB  P1AC !
+  HB2,HB1: BB  !
+  HB3,HB2: BB  !
+  CG:  BB  P2CB !
+  HG2,HG1: BB  !
+  HG3,HG2: BB  !
+  CD:  BB  P3BA !
+  OE1: BB  P4AA !
+  OE2: BB  P4AB !
+  HE2: BB  !
+  C:   BB  P1AB
+  O:   BB  P2BA

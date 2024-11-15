@@ -1,0 +1,25 @@
+molecule: LYS
+
+atoms:
+  N:    BB  P1AA
+  H,HN: BB  !
+  CA:   BB  P0A
+  HA:   BB  !
+  CB:   BB  P1AC !
+  HB2,HB1:  BB  !
+  HB3,HB2:  BB  !
+  CG:   BB  P2CB !
+  HG2,HG1:  BB  !
+  HG3,HG2:  BB  !
+  CD:   BB  P3BA !
+  HD2,HD1:  BB  !
+  HD3,HD2:  BB  !
+  CE:   BB  P4AA !
+  HE2,HE1:  BB  !
+  HE3,HE2:  BB  !
+  NZ:   BB  P5AA !
+  HZ1:  BB  !
+  HZ2:  BB  !
+  HZ3:  BB  !
+  C:    BB  P1AB
+  O:    BB  P2BA
