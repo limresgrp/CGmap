@@ -21,6 +21,9 @@ from .bead import BeadMappingSettings, BeadMappingAtomSettings, Bead
 from cgmap.utils import DataDict
 from cgmap.utils.atomType import get_type_from_name
 
+import warnings
+warnings.filterwarnings("ignore")
+
 
 class Mapper():
 
@@ -570,7 +573,8 @@ class Mapper():
         self._atom_segindices = np.array(atom_segindices)
 
         batch, _, xyz = self._bead_positions.shape
-        self._atom_positions =  np.zeros((batch, len(self._atom_names), xyz), dtype=self._bead_positions.dtype)
+        self._atom_positions =  np.empty((batch, len(self._atom_names), xyz), dtype=self._bead_positions.dtype)
+        self._atom_positions[:] = np.nan
 
         self._compute_bead2atom_feats()
         self._compute_extra_map_impl()
