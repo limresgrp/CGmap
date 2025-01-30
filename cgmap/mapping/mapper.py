@@ -691,6 +691,9 @@ class Mapper():
         self._initialize_extra_pos_impl()
 
         try:
+            if len(self.trajectory) == 0:
+                self.trajectory = [self.universe.trajectory.ts]
+
             for ts in self.trajectory:
                 pos = np.empty((self._n_atoms, 3), dtype=float)
                 forces = np.empty((self._n_atoms, 3), dtype=float)
