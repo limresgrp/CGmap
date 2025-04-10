@@ -1,0 +1,37 @@
+molecule: A3
+
+atoms:
+  "P" : "A3 P7CA"
+  "OP1" : "A3 P8AA"
+  "OP2" : "A3 P8AB"
+  "O5'" : "A3 P6BC"
+  "C5'" : "A3 P5AB"
+  "H5'" : "A3 P6BA"
+  "H5''": "A3 P6BB"
+  "C4'" : "A3 P4BA" #First sugar 
+  "H4'" : "A3 P5AA"
+  "O4'" : "A3 P3AB"
+  "C1'" : "A3 P2AA"
+  "H1'" : "A3 P3AA"
+  "N9" : "A3 P1A" #Start of the base itself
+  "C8" : "A3 P2AB"
+  "H8" : "A3 P3BC"
+  "N7" : "A3 P3BD"
+  "C5" : "A3 P4DB"
+  "C6" : "A3 P5BC"
+  "N6" : "A3 P6CD"
+  "H61" : "A3 P7DB"
+  "H62" : "A3 P7DC"
+  "N1" : "A3 P5CE"
+  "C2" : "A3 P4EC"
+  "H2" : "A3 P5CD"
+  "N3" : "A3 P3BE"
+  "C4" : "A3 P2AC" #End of base, connects to N3, N9, and C5
+  "C3'" : "A3 P4FF" #Connects to C2', C4'
+  "H3'" : "A3 P5FG"
+  "C2'" : "A3 P3AF" #Connects to C1'
+  "H2'": "A3 P4FD"
+  "O2'": "A3 P4FE"
+  "HO2'": "A3 P5EF"
+  "O3'" : "A3 P5FH"
+  "HO3'" : "A3 P6HE"

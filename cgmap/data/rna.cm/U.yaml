@@ -1,0 +1,33 @@
+molecule: U
+
+atoms:
+  "P" : "U P7CA"
+  "OP1" : "U P8AA"
+  "OP2" : "U P8AB"
+  "O5'" : "U P6BC"
+  "C5'" : "U P5AB"
+  "H5'" : "U P6BA"
+  "H5''": "U P6BB"
+  "C4'" : "U P4BA" #First sugar 
+  "H4'" : "U P5AA"
+  "O4'" : "U P3AB"
+  "C1'" : "U P2AA"
+  "H1'" : "U P3AA"
+  "N1" : "U P1A" #Start of the base itself connects to C2
+  "C6" : "U P2AB"
+  "H6" : "U P3BC"
+  "C5" : "U P3BD"
+  "H5" : "U P4DB"
+  "C4" : "U P4DC"
+  "O4" : "U P5CC" #End first run
+  "N3" : "U P3CF"
+  "H3" : "U P4FD"
+  "C2" : "U P2AC" #Connects to N1
+  "O2" : "U P3CE" #End of the base
+  "C3'" : "U P4GG" #Connects to C2', C4'
+  "H3'" : "U P5GE"
+  "C2'" : "U P3AG" #Connects to C1'
+  "H2'": "U P4GE"
+  "O2'": "U P4GF" 
+  "HO2'": "U P5FD"
+  "O3'" : "U P5GF"

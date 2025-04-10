@@ -1,0 +1,35 @@
+molecule: G5
+
+atoms:
+  "HO5'" : "G5 P7CA"
+  "O5'" : "G5 P6BC"
+  "C5'" : "G5 P5AB"
+  "H5'" : "G5 P6BA"
+  "H5''": "G5 P6BB"
+  "C4'" : "G5 P4BA" #First sugar 
+  "H4'" : "G5 P5AA"
+  "O4'" : "G5 P3AB"
+  "C1'" : "G5 P2AA"
+  "H1'" : "G5 P3AA"
+  "N9" : "G5 P1A" #Start of the base itself, Connects to C4 to avoid number conflict
+  "C8" : "G5 P2AB"
+  "H8" : "G5 P3BC"
+  "N7" : "G5 P3BD"
+  "C5" : "G5 P4DB"
+  "C6" : "G5 P5BC"
+  "O6" : "G5 P6CD"
+  "N1" : "G5 P6CE"
+  "H1" : "G5 P7EB" #End one run
+  "C2" : "G5 P4EC" 
+  "N2" : "G5 P5CD"
+  "H21" : "G5 P6DF"
+  "H22" : "G5 P6DG"
+  "N3" : "G5 P3CE"
+  "C4" : "G5 P2AC" #End of the base
+  "C3'" : "G5 P4FF" #Connects to C2'
+  "H3'" : "G5 P5FF"
+  "C2'" : "G5 P3AF" #Connects to C1'
+  "H2'": "G5 P4FD"
+  "O2'": "G5 P4FE"
+  "HO2'": "G5 P5EE"
+  "O3'" : "G5 P5FG"

@@ -1,0 +1,34 @@
+molecule: C
+
+atoms:
+  "P" : "C P7CA"
+  "OP1" : "C P8AA"
+  "OP2" : "C P8AB"
+  "O5'" : "C P6BC"
+  "C5'" : "C P5AB"
+  "H5'" : "C P6BA"
+  "H5''": "C P6BB"
+  "C4'" : "C P4BA" #First sugar 
+  "H4'" : "C P5AA"
+  "O4'" : "C P3AB"
+  "C1'" : "C P2AA"
+  "H1'" : "C P3AA"
+  "N1" : "C P1A" #Start of the base itself connects to C2
+  "C6" : "C P2AB"
+  "H6" : "C P3BC"
+  "C5" : "C P3BD"
+  "H5" : "C P4DB"
+  "C4" : "C P4DC"
+  "N4" : "C P5CC"
+  "H41" : "C P4ED"
+  "H42" : "C P4EE"
+  "N3" : "C P3CE"
+  "C2" : "C P2AC" #Connects to N1
+  "O2" : "C P3CF" #End of the base
+  "C3'" : "C P4GH" #Connects to C2'
+  "H3'" : "C P5HE"
+  "C2'" : "C P3AG" #Connects to C1'
+  "H2'": "C P4GF"
+  "O2'": "C P4GG" 
+  "HO2'": "C P5GD"
+  "O3'" : "C P5HF" #Connects to C3' next nucleotide connects to this}
