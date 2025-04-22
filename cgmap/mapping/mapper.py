@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import copy
 import glob
 import logging
@@ -11,10 +13,9 @@ import numpy as np
 import MDAnalysis as mda
 
 from os.path import dirname, basename
-from MDAnalysis.transformations import set_dimensions
 from collections import OrderedDict
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, Generator, List, Optional, Tuple
 from MDAnalysis.core.groups import Atom
 from cgmap.mapping.utils import parse_slice
 from .bead import BeadMappingSettings, BeadMappingAtomSettings, Bead
@@ -194,7 +195,6 @@ class Mapper():
         try:
             from aggforce import linearmap as lm
             from aggforce import agg as ag
-            from aggforce import constfinder as cf
             if self._bead_optim_forces is None and self._atom_forces is not None:
                 idcs = self.bead2atom_idcs
                 idcs = [[i for i in id if ~np.any(np.isnan(self._atom_forces[0, i]))] for id in idcs]
@@ -352,9 +352,17 @@ class Mapper():
         self._clear_mappings()
         self._load_mappings()
     
-    def __call__(self, *args, **kwargs):
+    def __call__(self, **kwargs) -> Generator[Tuple[Mapper, str]]:
         for input_filename, input_trajname in self.iterate():
-            yield self.map_impl(input_filename, input_trajname)
+            p = Path(input_filename)
+            output_filename = str(Path(kwargs.get('output', self.config.get('output', p.parent)), p.stem + '.data' + '.npz'))
+            if os.path.isfile(output_filename):
+                continue
+            try:
+                yield self.map_impl(input_filename, input_trajname), output_filename
+            except Exception as e:
+                self.logger.error(f"Error processing file {input_filename}: {e}")
+                self.logger.error(traceback.format_exc())
     
     def iterate(self, *args, **kwargs):
         for input_filename, input_trajname in zip(self.input_filenames, self.input_trajnames):
@@ -386,6 +394,9 @@ class Mapper():
 
         selection = self.config.get("selection", "all")
         self.selection = u.select_atoms(selection)
+
+        if len(self.selection) > 20000:
+            return None
 
         self._map_impl_func()
         return self
@@ -849,8 +860,8 @@ class Mapper():
         u.load_new(np.nan_to_num(dataset.get(DataDict.BEAD_POSITION)), order='fac')
         box_dimension = dataset.get(DataDict.CELL, None)
         if box_dimension is not None:
-            transform = set_dimensions(box_dimension)
-            u.trajectory.add_transformations(transform)
+            for ts in u.trajectory:
+                ts.dimensions = box_dimension[ts.frame]
         selection = u.select_atoms('all')
         with mda.Writer(filename, n_atoms=u.atoms.n_atoms) as w:
             w.write(selection.atoms)
@@ -894,8 +905,8 @@ class Mapper():
         u.load_new(np.nan_to_num(dataset.get(DataDict.ATOM_POSITION)), order='fac')
         box_dimension = dataset.get(DataDict.CELL, None)
         if box_dimension is not None:
-            transform = set_dimensions(box_dimension)
-            u.trajectory.add_transformations(transform)
+            for ts in u.trajectory:
+                ts.dimensions = box_dimension[ts.frame]
         selection = u.select_atoms('all')
         with mda.Writer(filename, n_atoms=u.atoms.n_atoms) as w:
             w.write(selection.atoms)
