@@ -1,6 +1,9 @@
 molecule: ILE
 
 atoms:
+  H1:  BB  !
+  H2:  BB  !
+  H3:  BB  !
   N:    BB   P2AA
   H,HN:    BB
   CA:   BB   P1A
