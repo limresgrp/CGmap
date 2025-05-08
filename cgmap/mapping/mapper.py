@@ -272,6 +272,8 @@ class Mapper():
         }.items() if v is not None}
 
     def __init__(self, args_dict, logger = None) -> None:
+        if "bead_types_filename" in args_dict:
+            self.bead_types_filename = args_dict.get("bead_types_filename")
         self.logger = logger if logger is not None else logging.getLogger()
 
         config: Dict[str, str] = dict()
@@ -427,7 +429,7 @@ class Mapper():
         
         # Iterate mapping files -> 1 mapping file = 1 residue mapping
         for filename in os.listdir(self._root_mapping):
-            if filename == self.bead_types_filename:
+            if filename.startswith("bead_types"):
                 continue
             
             _conf_bead2atom = OrderedDict({})
