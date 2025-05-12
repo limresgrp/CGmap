@@ -1,0 +1,26 @@
+molecule: PHE
+
+atoms:
+  H1:  BB  !
+  H2:  BB  !
+  H3:  BB  !
+  N:    BB   P2AA
+  H,HN: BB
+  CA:   BB   P1A CM
+  HA:   BB   !
+  CB:   SC1  P2AA
+  HB2,HB1:  SC1
+  HB3,HB2:  SC1
+  CG:   SC1  P1A
+  CD1:  SC1  P2AB
+  HD1:  SC1
+  CE1:  SC3  P1A
+  HE1:  SC3
+  CZ:   SC3  P1B
+  HZ:   SC3
+  CD2:  SC2  P1A
+  HD2:  SC2
+  CE2:  SC2  P1B
+  HE2:  SC2
+  C:    BB   P2AB
+  O:    BB   P3BA

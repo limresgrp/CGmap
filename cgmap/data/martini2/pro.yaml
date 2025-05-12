@@ -1,0 +1,17 @@
+molecule: PRO
+
+atoms:
+  N:   BB   P2AA
+  CD:  SC1  P1C
+  HD2,HD1: SC1  !
+  HD3,HD2: SC1  !
+  CA:  BB   P1A CM
+  HA:  BB   !
+  CB:  SC1  P1A
+  HB2,HB1: SC1  !
+  HB3,HB2: SC1  !
+  CG:  SC1  P1B
+  HG2,HG1: SC1  !
+  HG3,HG2: SC1  !
+  C:   BB   P2AB
+  O:   BB   P3BA

@@ -1,0 +1,16 @@
+molecule: CYX
+
+atoms:
+  H1:  BB  !
+  H2:  BB  !
+  H3:  BB  !
+  N:    BB   P2AA
+  H,HN:    BB
+  CA:   BB   P1A CM
+  HA:   BB   !
+  CB:   SC1  P1A
+  HB2,HB1:  SC1  !
+  HB3,HB2:  SC1  !
+  SG:   SC1  P1B
+  C:    BB   P2AB
+  O:    BB   P3BA

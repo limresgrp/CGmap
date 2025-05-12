@@ -1,0 +1,16 @@
+molecule: ALA
+
+atoms:
+  H1:  BB  !
+  H2:  BB  !
+  H3:  BB  !
+  N:   BB   P2AA
+  H,HN:   BB
+  CA:  BB   P1A CM
+  HA:  BB   !
+  CB:  BB  P0A
+  HB1: BB  !
+  HB2: BB  !
+  HB3: BB  !
+  C:   BB   P2AB
+  O:   BB   P3BB
