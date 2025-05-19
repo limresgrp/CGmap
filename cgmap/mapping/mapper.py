@@ -397,9 +397,6 @@ class Mapper():
         selection = self.config.get("selection", "all")
         self.selection = u.select_atoms(selection)
 
-        if len(self.selection) > 10000:
-            return None
-
         self._map_impl_func()
         return self
 
