@@ -3,13 +3,25 @@ import argparse
 import textwrap
 import logging
 from pathlib import Path
-from typing import List
+from typing import Dict, List
 
 from cgmap.mapping.mapper import Mapper
 from cgmap.scripts._logger import set_up_script_logger
 
 import warnings
 warnings.filterwarnings("ignore")
+
+
+def aa2cg(args_dict: Dict, logger = logging.getLogger()):
+    # Do the mapping
+    logger.info(f"Loading CG mappings from '{args_dict.get('mapping')}' folder")
+    mapper = Mapper(args_dict, logger=logger)
+    logger.info("Running CG mapping...")
+    mapper.map()
+    logger.info("Saving CG structure...")
+    fout = mapper.save()
+    logger.info("Success!")
+    return fout
 
 
 def main(args=None, running_as_script: bool = True):
@@ -120,14 +132,8 @@ def main(args=None, running_as_script: bool = True):
         logger = logging.getLogger("cgmap-map")
         logger.setLevel(logging.INFO)
 
-        # Do the mapping
-        logger.info(f"Loading CG mappings from '{args.mapping}' folder")
-        mapper = Mapper(vars(args), logger=logger)
-        logger.info("Running CG mapping...")
-        mapper.map()
-        logger.info("Saving CG structure...")
-        mapper.save()
-        logger.info("Success!")
+        aa2cg(vars(args))
+
 
 if __name__ == "__main__":
     main(running_as_script=True)
