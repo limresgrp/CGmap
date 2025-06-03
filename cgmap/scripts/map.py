@@ -12,17 +12,19 @@ import warnings
 warnings.filterwarnings("ignore")
 
 
-def aa2cg(args_dict: Dict, logger = logging.getLogger()):
+def aa2cg(args_dict: Dict):
     # Do the mapping
-    logger.info(f"Loading CG mappings from '{args_dict.get('mapping')}' folder")
-    mapper = Mapper(args_dict, logger=logger)
-    logger.info("Running CG mapping...")
-    mapper.map()
-    logger.info("Saving CG structure...")
-    fout = mapper.save()
-    logger.info("Success!")
-    return fout
-
+    print(f"Loading CG mappings from '{args_dict.get('mapping')}' folder")
+    mapper = Mapper(args_dict)
+    print("Running CG mapping...")
+    cg_filenames, cg_filename_trajs = [], []
+    for m, _ in mapper():
+        print("Saving CG structure...")
+        cg_filename, cg_filename_traj = m.save()
+        cg_filenames.append(cg_filename)
+        cg_filename_trajs.append(cg_filename_traj)
+    print("Success!")
+    return cg_filenames, cg_filename_trajs
 
 def main(args=None, running_as_script: bool = True):
     parser = argparse.ArgumentParser(
