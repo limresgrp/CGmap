@@ -11,6 +11,7 @@ import traceback
 import itertools
 import numpy as np
 import MDAnalysis as mda
+import random
 
 from os.path import dirname, basename
 from collections import OrderedDict
@@ -838,6 +839,8 @@ class Mapper():
         if filename is None:
             p = Path(self.config.get('input'))
             filename = self.config.get('output',  str(Path(p.parent, p.stem + '.CG' + p.suffix)))
+            if os.path.isdir(filename):
+                filename = os.path.join(filename, f"{random.getrandbits(128)}.pdb")
         
         if len(dirname(filename)) > 0:
             os.makedirs(os.path.dirname(filename), exist_ok=True)
@@ -865,6 +868,7 @@ class Mapper():
         with mda.Writer(filename, n_atoms=u.atoms.n_atoms) as w:
             w.write(selection.atoms)
 
+        filename_traj = None
         if len(u.trajectory) > 1:
             if traj_format is None:
                 traj_format = self.config.get('outputtraj', 'xtc')
@@ -874,6 +878,7 @@ class Mapper():
                     w_traj.write(selection.atoms)
         
         self.logger.info(f"Coarse-grained structure saved as {filename}")
+        return filename, filename_traj
     
     def save_atomistic(
         self,
