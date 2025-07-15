@@ -534,7 +534,7 @@ class Mapper():
             for ts in self.trajectory:
                 bead_pos = self.selection.positions
                 if ts.dimensions is not None:
-                    cell_dimensions.append(ts.dimensions)
+                    cell_dimensions.append(ts.dimensions.copy())
                 bead_positions.append(bead_pos)
         except ValueError as e:
             self.logger.error(f"Error rading trajectory: {e}. Skipping missing trajectory frames.")
@@ -719,7 +719,7 @@ class Mapper():
                 atom_forces.append(forces)
 
                 if ts.dimensions is not None:
-                    cell_dimensions.append(ts.dimensions)
+                    cell_dimensions.append(ts.dimensions.copy())
                 
                 not_nan_pos = np.nan_to_num(pos)
                 bead_pos = np.sum(not_nan_pos[self._bead2atom_idcs] * self._bead2atom_weights[..., None], axis=1)
