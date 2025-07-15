@@ -22,6 +22,7 @@ from cgmap.mapping.utils import parse_slice
 from .bead import BeadMappingSettings, BeadMappingAtomSettings, Bead
 from cgmap.utils import DataDict
 from cgmap.utils.atomType import get_type_from_name
+from ase.geometry import cellpar_to_cell
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -534,7 +535,8 @@ class Mapper():
             for ts in self.trajectory:
                 bead_pos = self.selection.positions
                 if ts.dimensions is not None:
-                    cell_dimensions.append(ts.dimensions.copy())
+                    # Convert MDAnalysis ts.dimension ([lx, ly, lz, alpha, beta, gamma]) to 3x3 matrix
+                    cell_dimensions.append(cellpar_to_cell(ts.dimensions))
                 bead_positions.append(bead_pos)
         except ValueError as e:
             self.logger.error(f"Error rading trajectory: {e}. Skipping missing trajectory frames.")
@@ -719,7 +721,7 @@ class Mapper():
                 atom_forces.append(forces)
 
                 if ts.dimensions is not None:
-                    cell_dimensions.append(ts.dimensions.copy())
+                    cell_dimensions.append(cellpar_to_cell(ts.dimensions))
                 
                 not_nan_pos = np.nan_to_num(pos)
                 bead_pos = np.sum(not_nan_pos[self._bead2atom_idcs] * self._bead2atom_weights[..., None], axis=1)
