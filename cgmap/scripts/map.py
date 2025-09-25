@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Dict, List
 
 from cgmap.mapping.mapper import Mapper
-from cgmap.scripts._logger import set_up_script_logger
+from cgmap.utils.logging import set_up_script_logger
 
 import warnings
 warnings.filterwarnings("ignore")
