@@ -68,9 +68,9 @@ def main(args=None, running_as_script: bool = True):
         "-it",
         "--inputtraj",
         nargs='+',
-        help="List of trajectory files to load.\n",
-        type=List[str],
-        default=[],
+        help="Trajectory file to load.\n",
+        type=str,
+        default=None,
     )
     map_parser.add_argument(
         "-ot",
