@@ -890,17 +890,25 @@ class Mapper():
     ):
         if filename is None:
             p = Path(self.config.get('input'))
-            filename = self.config.get('output',  str(Path(p.parent, p.stem + '.AA' + p.suffix)))
+            filename = str(Path(p.parent, p.stem + '.AA' + p.suffix))
         
         if len(dirname(filename)) > 0:
             os.makedirs(os.path.dirname(filename), exist_ok=True)
 
         dataset = self.dataset
+
+        # remove deltas in resindex
+        atom_resindex = dataset[DataDict.ATOM_RESIDCS]
+        atom_resindex_unique = np.unique(atom_resindex)
+        atom_resindex_map = {}
+        for i,j in enumerate(atom_resindex_unique):
+            atom_resindex_map[j] = i
+        atom_resindex = np.array([atom_resindex_map[j] for j in atom_resindex])
         u = mda.Universe.empty(
             n_atoms =       dataset[DataDict.NUM_ATOMS],
             n_residues =    dataset[DataDict.NUM_RESIDUES],
             n_segments =    len(np.unique(dataset[DataDict.ATOM_SEGIDS])),
-            atom_resindex = dataset[DataDict.ATOM_RESIDCS],
+            atom_resindex = atom_resindex,
             trajectory =    True, # necessary for adding coordinates
         )
         u.add_TopologyAttr('names',    dataset[DataDict.ATOM_NAMES])
@@ -913,7 +921,8 @@ class Mapper():
         box_dimension = dataset.get(DataDict.CELL, None)
         if box_dimension is not None:
             for ts in u.trajectory:
-                ts.dimensions = box_dimension[ts.frame]
+                try: ts.dimensions = box_dimension[ts.frame]
+                except: pass
         selection = u.select_atoms('all')
         with mda.Writer(filename, n_atoms=u.atoms.n_atoms) as w:
             w.write(selection.atoms)
@@ -963,7 +972,7 @@ class Mapper():
         
         if filename is None:
             p = Path(self.config.get('input'))
-            filename = str(Path(p.parent, p.stem + '.data' + '.npz'))
+            filename = str(Path(p.parent, p.stem + '.npz'))
         else:
             p = Path(filename)
             if p.suffix != '.npz':
