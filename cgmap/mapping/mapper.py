@@ -865,7 +865,8 @@ class Mapper():
         box_dimension = dataset.get(DataDict.CELL, None)
         if box_dimension is not None:
             for ts in u.trajectory:
-                ts.dimensions = box_dimension[ts.frame]
+                try: ts.dimensions = box_dimension[ts.frame]
+                except: pass
         selection = u.select_atoms('all')
         with mda.Writer(filename, n_atoms=u.atoms.n_atoms) as w:
             w.write(selection.atoms)
