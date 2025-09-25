@@ -866,7 +866,9 @@ class Mapper():
         if box_dimension is not None:
             for ts in u.trajectory:
                 try: ts.dimensions = box_dimension[ts.frame]
-                except: pass
+                except:
+                    from ase.geometry import cell_to_cellpar
+                    ts.dimensions = cell_to_cellpar(box_dimension[ts.frame])
         selection = u.select_atoms('all')
         with mda.Writer(filename, n_atoms=u.atoms.n_atoms) as w:
             w.write(selection.atoms)
@@ -922,7 +924,9 @@ class Mapper():
         if box_dimension is not None:
             for ts in u.trajectory:
                 try: ts.dimensions = box_dimension[ts.frame]
-                except: pass
+                except:
+                    from ase.geometry import cell_to_cellpar
+                    ts.dimensions = cell_to_cellpar(box_dimension[ts.frame])
         selection = u.select_atoms('all')
         with mda.Writer(filename, n_atoms=u.atoms.n_atoms) as w:
             w.write(selection.atoms)
