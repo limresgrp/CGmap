@@ -359,12 +359,12 @@ class Mapper():
     def __call__(self, **kwargs) -> Generator[Tuple[Mapper, str]]:
         for input_filename, input_trajname in self.iterate():
             p = Path(input_filename)
-            output_filename = str(Path(kwargs.get('output', self.config.get('output', p.parent)), p.stem + '.data' + '.npz'))
-            if os.path.isfile(output_filename):
-                continue
+            output_filename = str(Path(kwargs.get('output', self.config.get('output', p.parent)), p.stem + '.npz'))
             try:
                 yield self.map_impl(input_filename, input_trajname), output_filename
             except Exception as e:
+                print(e, traceback.format_exc())
+                print("If you are mapping CG, remember to call with the --cg option to tell you are mapping a CG system")
                 self.logger.error(f"Error processing file {input_filename}: {e}")
                 self.logger.error(traceback.format_exc())
     
@@ -880,7 +880,7 @@ class Mapper():
                 for ts in u.trajectory:  # Skip the first frame as it's already saved
                     w_traj.write(selection.atoms)
         
-        self.logger.info(f"Coarse-grained structure saved as {filename}")
+        print(f"Coarse-grained structure saved as {filename}")
         return filename, filename_traj
     
     def save_atomistic(
@@ -935,7 +935,7 @@ class Mapper():
                 for ts in u.trajectory:  # Skip the first frame as it's already saved
                     w_traj.write(selection.atoms)
         
-        self.logger.info(f"Atomistic structure saved as {filename}")
+        print(f"Atomistic structure saved as {filename}")
     
     def save_npz(
         self,
@@ -981,4 +981,4 @@ class Mapper():
         if len(dirname(filename)) > 0:
             os.makedirs(dirname(filename), exist_ok=True)
         np.savez(filename, **dataset)
-        self.logger.info(f"npz dataset saved as {filename}")
+        print(f"npz dataset saved as {filename}")

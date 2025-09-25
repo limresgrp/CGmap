@@ -101,6 +101,13 @@ def main(args=None, running_as_script: bool = True):
         type=Path,
         default=None,
     )
+    map_parser.add_argument(
+        "--cg",
+        help="Set this flag to indicate the input is NOT atomistic (default: atomistic/True).",
+        dest="isatomistic",
+        action="store_false",
+        default=True,
+    )
 
     # Subparser for the 'test' command
     test_parser = subparsers.add_parser(
