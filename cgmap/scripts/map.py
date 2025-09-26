@@ -3,7 +3,7 @@ import argparse
 import textwrap
 import logging
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict
 
 from cgmap.mapping.mapper import Mapper
 from cgmap.utils.logging import set_up_script_logger

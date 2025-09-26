@@ -329,8 +329,14 @@ class Mapper():
                     if input_basenames is None
                     or basename(fname).replace(f".{traj_format}", "") in input_basenames
                 ]
-            else:
+            elif isinstance(inputtraj, str):
                 self.input_trajnames = [inputtraj]
+            elif isinstance(inputtraj, list):
+                self.input_trajnames = inputtraj
+            else:
+                raise ValueError(
+                    f"'inputtraj' must be either None, a string pointing to a folder or file, or a list of file strings, but got {type(inputtraj)}: {inputtraj}"
+                )
 
         self._map_impl_func = self._map_impl if config.get("isatomistic", False) else self._map_impl_cg
 
