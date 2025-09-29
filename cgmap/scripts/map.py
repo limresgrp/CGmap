@@ -108,6 +108,13 @@ def main(args=None, running_as_script: bool = True):
         action="store_false",
         default=True,
     )
+    map_parser.add_argument(
+        "--a",
+        help="Set this flag to indicate the input is atomistic (default: atomistic/True).",
+        dest="isatomistic",
+        action="store_true",
+        default=True,
+    )
 
     # Subparser for the 'test' command
     test_parser = subparsers.add_parser(
