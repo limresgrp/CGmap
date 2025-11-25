@@ -400,17 +400,18 @@ class Mapper():
         self.selection = u.select_atoms(selection)
 
         try:
-            dims = getattr(u.trajectory.ts, "dimensions", None)
-            if dims is not None and np.any(np.asarray(dims)[:3] > 0):
-                atoms_ag = self.selection if len(self.selection) > 0 else u.atoms
-                if not hasattr(atoms_ag, 'bonds'):
-                    atoms_ag.guess_bonds()
-                # Remove PBC jumps and recenter frames before any mapping steps.
-                u.trajectory.add_transformations(
-                    mdatrans.unwrap(atoms_ag),
-                    mdatrans.center_in_box(atoms_ag, wrap=True),
-                )
-                logging.info("Trajectory unwrapped and centered")
+            if self.config.get("align", True):
+                dims = getattr(u.trajectory.ts, "dimensions", None)
+                if dims is not None and np.any(np.asarray(dims)[:3] > 0):
+                    atoms_ag = self.selection if len(self.selection) > 0 else u.atoms
+                    if not hasattr(atoms_ag, 'bonds'):
+                        atoms_ag.guess_bonds()
+                    # Remove PBC jumps and recenter frames before any mapping steps.
+                    u.trajectory.add_transformations(
+                        mdatrans.unwrap(atoms_ag),
+                        mdatrans.center_in_box(atoms_ag, wrap=True),
+                    )
+                    logging.info("Trajectory unwrapped and centered")
         except Exception as exc:
             logging.warning(f"Could not preprocess trajectory (unwrap/center): {exc}")
 
