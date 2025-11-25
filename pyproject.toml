@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cgmap"
+description = "CGmap is a tool to create Coarse-Grained versions of molecules, according to a specified CG-Mapping."
+authors = [
+    { name = "Daniele Angioletti" }
+]
+requires-python = ">=3.8"
+dependencies = [
+    "ase",
+    "numpy",
+    "MDAnalysis",
+    "molmass",
+]
+dynamic = ["version"]
+
+[project.urls]
+Download = "https://github.com/limresgrp/CGmap"
+
+[project.scripts]
+cgmap = "cgmap.scripts.map:main"
+
+[tool.setuptools.packages.find]
+include = ["cgmap", "cgmap.*"]

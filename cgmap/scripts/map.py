@@ -3,10 +3,10 @@ import argparse
 import textwrap
 import logging
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict
 
 from cgmap.mapping.mapper import Mapper
-from cgmap.scripts._logger import set_up_script_logger
+from cgmap.utils.logging import set_up_script_logger
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -68,9 +68,9 @@ def main(args=None, running_as_script: bool = True):
         "-it",
         "--inputtraj",
         nargs='+',
-        help="List of trajectory files to load.\n",
-        type=List[str],
-        default=[],
+        help="Trajectory file to load.\n",
+        type=str,
+        default=None,
     )
     map_parser.add_argument(
         "-ot",
@@ -100,6 +100,20 @@ def main(args=None, running_as_script: bool = True):
         help="Log file.",
         type=Path,
         default=None,
+    )
+    map_parser.add_argument(
+        "--cg",
+        help="Set this flag to indicate the input is NOT atomistic (default: atomistic/True).",
+        dest="isatomistic",
+        action="store_false",
+        default=True,
+    )
+    map_parser.add_argument(
+        "--a",
+        help="Set this flag to indicate the input is atomistic (default: atomistic/True).",
+        dest="isatomistic",
+        action="store_true",
+        default=True,
     )
 
     # Subparser for the 'test' command

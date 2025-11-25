@@ -212,7 +212,7 @@ class Mapper():
                     # Sample from A directly
                     atom_forces = self.atom_forces
 
-                self.logger.info(f"Optimizing the mapping of atomistic forces to CG...")
+                logging.info(f"Optimizing the mapping of atomistic forces to CG...")
                 self._bead_optim_forces = ag.project_forces(
                     method=ag.linearmap.qp_linear_map_per_cg_site, # ag.linearmap.constraint_aware_uni_map
                     xyz=None,
@@ -273,10 +273,9 @@ class Mapper():
             DataDict.BEAD2ATOM_WEIGHTS:   self._bead2atom_weights,
         }.items() if v is not None}
 
-    def __init__(self, args_dict, logger = None) -> None:
+    def __init__(self, args_dict) -> None:
         if "bead_types_filename" in args_dict:
             self.bead_types_filename = args_dict.get("bead_types_filename")
-        self.logger = logger if logger is not None else logging.getLogger()
 
         config: Dict[str, str] = dict()
 
@@ -329,8 +328,14 @@ class Mapper():
                     if input_basenames is None
                     or basename(fname).replace(f".{traj_format}", "") in input_basenames
                 ]
-            else:
+            elif isinstance(inputtraj, str):
                 self.input_trajnames = [inputtraj]
+            elif isinstance(inputtraj, list):
+                self.input_trajnames = inputtraj
+            else:
+                raise ValueError(
+                    f"'inputtraj' must be either None, a string pointing to a folder or file, or a list of file strings, but got {type(inputtraj)}: {inputtraj}"
+                )
 
         self._map_impl_func = self._map_impl if config.get("isatomistic", False) else self._map_impl_cg
 
@@ -359,14 +364,15 @@ class Mapper():
     def __call__(self, **kwargs) -> Generator[Tuple[Mapper, str]]:
         for input_filename, input_trajname in self.iterate():
             p = Path(input_filename)
-            output_filename = str(Path(kwargs.get('output', self.config.get('output', p.parent)), p.stem + '.data' + '.npz'))
-            if os.path.isfile(output_filename):
-                continue
+            output_filename = str(Path(kwargs.get('output', self.config.get('output', p.parent)), p.stem + '.npz'))
             try:
                 yield self.map_impl(input_filename, input_trajname), output_filename
             except Exception as e:
-                self.logger.error(f"Error processing file {input_filename}: {e}")
-                self.logger.error(traceback.format_exc())
+                print(e, traceback.format_exc())
+                print("If you are mapping CG, remember to call with the --cg option to tell you are mapping a CG system")
+                print("If you are mapping atomistic, you might need to call with the --a option to tell you are mapping an atomistic system")
+                logging.error(f"Error processing file {input_filename}: {e}")
+                logging.error(traceback.format_exc())
     
     def iterate(self, *args, **kwargs):
         for input_filename, input_trajname in zip(self.input_filenames, self.input_trajnames):
@@ -380,7 +386,7 @@ class Mapper():
     def map_impl(self, input_filename, input_trajname):
         self.config["input"] = input_filename
         self.config["inputtraj"] = [input_trajname] if input_trajname is not None else []
-        self.logger.info(f"Mapping {input_filename} structure")
+        logging.info(f"Mapping {input_filename} structure")
 
         self._clear_map()
 
@@ -539,10 +545,16 @@ class Mapper():
                     cell_dimensions.append(cellpar_to_cell(ts.dimensions))
                 bead_positions.append(bead_pos)
         except ValueError as e:
-            self.logger.error(f"Error rading trajectory: {e}. Skipping missing trajectory frames.")
+            logging.error(f"Error rading trajectory: {e}. Skipping missing trajectory frames.")
 
         self._bead_positions =  np.stack(bead_positions, axis=0)
         self._cell = np.stack(cell_dimensions, axis=0) if len(cell_dimensions) > 0 else None
+        if self._cell is not None and self._cell.shape[-2:] == (3, 3):
+            # Check for non-zero cell vectors to determine periodicity
+            pbc = np.any(np.linalg.norm(self._cell[:, :3, :3], axis=2) > 1e-6, axis=0)
+            self._pbc = pbc.astype(bool)
+        else:
+            self._pbc = np.array([False, False, False])
 
         atom_resnames =   []
         atom_names =      []
@@ -653,10 +665,10 @@ class Mapper():
                 tb_info = traceback.extract_tb(tb)
                 filename, line, func, text = tb_info[-1]
 
-                self.logger.error('An error occurred on line {} in statement {}'.format(line, text))
+                logging.error('An error occurred on line {} in statement {}'.format(line, text))
                 raise
             except Exception as e:
-                self.logger.warning(f"Missing {atom_idname} in mapping file.")
+                logging.warning(f"Missing {atom_idname} in mapping file")
 
         # Complete all beads. Missing atoms will be ignored.
         while len(self._incomplete_beads) > 0:
@@ -731,13 +743,19 @@ class Mapper():
                 build_all_atom_idcs = False
         
         except Exception as e:
-            self.logger.error(f"Error rading trajectory: {e}. Skipping missing trajectory frames.")
+            logging.error(f"Error rading trajectory: {e}. Skipping missing trajectory frames.")
         
         self.all_atom_idcs = np.concatenate(all_atom_idcs)
         self._atom_positions =  np.stack(atom_positions, axis=0)
         self._atom_forces =  np.stack(atom_forces, axis=0)
         self._bead_positions =  np.stack(bead_positions, axis=0)
         self._cell = np.stack(cell_dimensions, axis=0) if len(cell_dimensions) > 0 else None
+        if self._cell is not None and self._cell.shape[-2:] == (3, 3):
+            # Check for non-zero cell vectors to determine periodicity
+            pbc = np.any(np.linalg.norm(self._cell[:, :3, :3], axis=2) > 1e-6, axis=0)
+            self._pbc = pbc.astype(bool)
+        else:
+            self._pbc = np.array([False, False, False])
         self._store_extra_pos_impl()
         self._compute_extra_map_impl()
         return self
@@ -865,7 +883,10 @@ class Mapper():
         box_dimension = dataset.get(DataDict.CELL, None)
         if box_dimension is not None:
             for ts in u.trajectory:
-                ts.dimensions = box_dimension[ts.frame]
+                try: ts.dimensions = box_dimension[ts.frame]
+                except:
+                    from ase.geometry import cell_to_cellpar
+                    ts.dimensions = cell_to_cellpar(box_dimension[ts.frame])
         selection = u.select_atoms('all')
         with mda.Writer(filename, n_atoms=u.atoms.n_atoms) as w:
             w.write(selection.atoms)
@@ -879,7 +900,7 @@ class Mapper():
                 for ts in u.trajectory:  # Skip the first frame as it's already saved
                     w_traj.write(selection.atoms)
         
-        self.logger.info(f"Coarse-grained structure saved as {filename}")
+        print(f"Coarse-grained structure saved as {filename}")
         return filename, filename_traj
     
     def save_atomistic(
@@ -889,17 +910,25 @@ class Mapper():
     ):
         if filename is None:
             p = Path(self.config.get('input'))
-            filename = self.config.get('output',  str(Path(p.parent, p.stem + '.AA' + p.suffix)))
+            filename = str(Path(p.parent, p.stem + '.AA' + p.suffix))
         
         if len(dirname(filename)) > 0:
             os.makedirs(os.path.dirname(filename), exist_ok=True)
 
         dataset = self.dataset
+
+        # remove deltas in resindex
+        atom_resindex = dataset[DataDict.ATOM_RESIDCS]
+        atom_resindex_unique = np.unique(atom_resindex)
+        atom_resindex_map = {}
+        for i,j in enumerate(atom_resindex_unique):
+            atom_resindex_map[j] = i
+        atom_resindex = np.array([atom_resindex_map[j] for j in atom_resindex])
         u = mda.Universe.empty(
             n_atoms =       dataset[DataDict.NUM_ATOMS],
             n_residues =    dataset[DataDict.NUM_RESIDUES],
             n_segments =    len(np.unique(dataset[DataDict.ATOM_SEGIDS])),
-            atom_resindex = dataset[DataDict.ATOM_RESIDCS],
+            atom_resindex = atom_resindex,
             trajectory =    True, # necessary for adding coordinates
         )
         u.add_TopologyAttr('names',    dataset[DataDict.ATOM_NAMES])
@@ -912,7 +941,10 @@ class Mapper():
         box_dimension = dataset.get(DataDict.CELL, None)
         if box_dimension is not None:
             for ts in u.trajectory:
-                ts.dimensions = box_dimension[ts.frame]
+                try: ts.dimensions = box_dimension[ts.frame]
+                except:
+                    from ase.geometry import cell_to_cellpar
+                    ts.dimensions = cell_to_cellpar(box_dimension[ts.frame])
         selection = u.select_atoms('all')
         with mda.Writer(filename, n_atoms=u.atoms.n_atoms) as w:
             w.write(selection.atoms)
@@ -925,7 +957,7 @@ class Mapper():
                 for ts in u.trajectory:  # Skip the first frame as it's already saved
                     w_traj.write(selection.atoms)
         
-        self.logger.info(f"Atomistic structure saved as {filename}")
+        print(f"Atomistic structure saved as {filename}")
     
     def save_npz(
         self,
@@ -962,7 +994,7 @@ class Mapper():
         
         if filename is None:
             p = Path(self.config.get('input'))
-            filename = str(Path(p.parent, p.stem + '.data' + '.npz'))
+            filename = str(Path(p.parent, p.stem + '.npz'))
         else:
             p = Path(filename)
             if p.suffix != '.npz':
@@ -971,4 +1003,4 @@ class Mapper():
         if len(dirname(filename)) > 0:
             os.makedirs(dirname(filename), exist_ok=True)
         np.savez(filename, **dataset)
-        self.logger.info(f"npz dataset saved as {filename}")
+        print(f"npz dataset saved as {filename}")
