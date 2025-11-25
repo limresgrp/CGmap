@@ -1,3 +1,6 @@
+.vscode
+conversion/
+
 *.svg
 .vscode
 neca/
