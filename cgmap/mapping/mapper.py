@@ -11,6 +11,7 @@ import traceback
 import itertools
 import numpy as np
 import MDAnalysis as mda
+import MDAnalysis.transformations as mdatrans
 import random
 
 from os.path import dirname, basename
@@ -394,6 +395,25 @@ class Mapper():
             self.config.get("input"),
             *self.config.get("inputtraj", []),
             **self.config.get("extrakwargs", {}))
+
+        selection = self.config.get("selection", "all")
+        self.selection = u.select_atoms(selection)
+
+        try:
+            dims = getattr(u.trajectory.ts, "dimensions", None)
+            if dims is not None and np.any(np.asarray(dims)[:3] > 0):
+                atoms_ag = self.selection if len(self.selection) > 0 else u.atoms
+                if not hasattr(atoms_ag, 'bonds'):
+                    atoms_ag.guess_bonds()
+                # Remove PBC jumps and recenter frames before any mapping steps.
+                u.trajectory.add_transformations(
+                    mdatrans.unwrap(atoms_ag),
+                    mdatrans.center_in_box(atoms_ag, wrap=True),
+                )
+                logging.info("Trajectory unwrapped and centered")
+        except Exception as exc:
+            logging.warning(f"Could not preprocess trajectory (unwrap/center): {exc}")
+
         self.universe = u
         
         trajslice = self.config.get("trajslice", None)
@@ -401,9 +421,6 @@ class Mapper():
             self.trajectory = u.trajectory
         else:
             self.trajectory = u.trajectory[trajslice]
-
-        selection = self.config.get("selection", "all")
-        self.selection = u.select_atoms(selection)
 
         self._map_impl_func()
         return self
@@ -439,6 +456,7 @@ class Mapper():
             
             _conf_bead2atom = OrderedDict({})
 
+            if os.path.isdir(os.path.join(self._root_mapping, filename)): continue
             conf: dict = OrderedDict(yaml.safe_load(Path(os.path.join(self._root_mapping, filename)).read_text()))
             mol: str = conf.get("molecule")
             atoms_settings: dict[str, str] = conf.get("atoms")
