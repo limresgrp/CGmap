@@ -1,3 +1,10 @@
+*.svg
+.vscode
+neca/
+popc.amber/
+analysis.ipynb
+convert_to_amber.ipynb
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
