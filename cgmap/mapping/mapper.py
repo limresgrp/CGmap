@@ -656,7 +656,7 @@ class Mapper():
                 self.logger.error('An error occurred on line {} in statement {}'.format(line, text))
                 raise
             except Exception as e:
-                self.logger.warning(f"Missing {atom_idname} in mapping file")
+                self.logger.warning(f"Missing {atom_idname} in mapping file.")
 
         # Complete all beads. Missing atoms will be ignored.
         while len(self._incomplete_beads) > 0:
