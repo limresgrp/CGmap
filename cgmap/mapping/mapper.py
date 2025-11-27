@@ -331,8 +331,10 @@ class Mapper():
                 ]
             elif isinstance(inputtraj, str):
                 self.input_trajnames = [inputtraj]
+            elif isinstance(inputtraj, Path):
+                self.input_trajnames = [str(inputtraj)]
             elif isinstance(inputtraj, list):
-                self.input_trajnames = inputtraj
+                self.input_trajnames = [str(x) for x in inputtraj]
             else:
                 raise ValueError(
                     f"'inputtraj' must be either None, a string pointing to a folder or file, or a list of file strings, but got {type(inputtraj)}: {inputtraj}"
