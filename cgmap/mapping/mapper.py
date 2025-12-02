@@ -402,7 +402,7 @@ class Mapper():
         self.selection = u.select_atoms(selection)
 
         try:
-            if self.config.get("align", True):
+            if self.config.get("align", False):
                 dims = getattr(u.trajectory.ts, "dimensions", None)
                 if dims is not None and np.any(np.asarray(dims)[:3] > 0):
                     atoms_ag = self.selection if len(self.selection) > 0 else u.atoms
